@@ -1,13 +1,13 @@
 // ==UserScript==
 // @name         OCS | Caçambas Online
 // @namespace    OCS-CacambasOnline
-// @version      0.7.48
-// @downloadURL  https://raw.githubusercontent.com/OCSREMOCAO/ocs-cacambas-online/main/OCS.user.js
-// @updateURL    https://raw.githubusercontent.com/OCSREMOCAO/ocs-cacambas-online/main/OCS.user.js
+// @version      0.7.52
 // @author       Tarcisio
 // @description  Gestão financeira, anexos, indicadores, filtros, juros, duplicatas e notificações inteligentes de pagamentos e atendimentos.
 // @match        https://app.cacambasonline.com/partner_area/*
 // @grant        none
+// @updateURL    https://raw.githubusercontent.com/OCSREMOCAO/ocs-cacambas-online/main/OCS.user.js
+// @downloadURL  https://raw.githubusercontent.com/OCSREMOCAO/ocs-cacambas-online/main/OCS.user.js
 // @run-at       document-idle
 // ==/UserScript==
 
@@ -18,9 +18,11 @@
  * Script independente para melhorias operacionais e financeiras no Caçambas Online.
  * Não é uma ferramenta oficial da plataforma.
  *
+ * v0.7.52 — Engrenagem inserida na própria lista lateral, imediatamente após o ícone de documento.
+ * v0.7.50 — Ícone amarelo de configurações integrado à barra lateral marrom.
+ * v0.7.49 — Painel Geral / Financeiro / Atualizações, preferências persistentes.
  * HISTÓRICO DE ALTERAÇÕES
- * v0.7.48 — Publicação GitHub com instalação direta e atualização via Tampermonkey.
- * v0.7.47 — Identidade e descrição do script atualizadas no Tampermonkey.
+ * v0.7.52 — Identidade e descrição do script atualizadas no Tampermonkey.
  * v0.7.46 — Consulta da razão social para identificação do cliente nos alertas.
  * v0.7.45 — Visual harmonizado e maior legibilidade do nome do cliente.
  * v0.7.44 — Botão para fechar todas as notificações abaixo dos quadradinhos.
@@ -35,11 +37,205 @@
 (function () {
     'use strict';
 
-    const VERSION = '0.7.47';
+    const VERSION = '0.7.52';
     const PREFIX = 'ocs0739';
 
     if (window.__OCS_0739__) return;
     window.__OCS_0739__ = true;
+
+    const OCS_SETTINGS_KEY = 'ocs-settings-v0749';
+    const OCS_DEFAULTS = Object.freeze({enabled:true, top:true, corner:true, sound:true,
+        duration:10, summary:true, filters:true, attachments:true, duplicates:true, interest:true, autoUpdates:true});
+    function readOCSSettings() {
+        try {
+            const stored = JSON.parse(localStorage.getItem(OCS_SETTINGS_KEY) || '{}');
+            const result = {...OCS_DEFAULTS};
+            for (const key of Object.keys(result)) {
+                if (key === 'duration') result.duration = Math.min(10, Math.max(1, Number(stored.duration) || 10));
+                else if (typeof stored[key] === 'boolean') result[key] = stored[key];
+            }
+            // Mantém o antigo ajuste de som de versões anteriores.
+            if (!Object.hasOwn(stored, 'sound') && localStorage.getItem('ocs0736-sound-enabled') === 'false') result.sound = false;
+            return result;
+        } catch (_) { return {...OCS_DEFAULTS}; }
+    }
+    let ocsSettings = readOCSSettings();
+    function saveOCSSettings(next) {
+        ocsSettings = {...ocsSettings, ...next};
+        ocsSettings.duration = Math.min(10, Math.max(1, Number(ocsSettings.duration) || 10));
+        localStorage.setItem(OCS_SETTINGS_KEY, JSON.stringify(ocsSettings));
+        localStorage.setItem('ocs0736-sound-enabled', String(ocsSettings.sound));
+        document.dispatchEvent(new CustomEvent('ocs:settings-changed'));
+    }
+    const OCS_UPDATE_URL = 'https://raw.githubusercontent.com/OCSREMOCAO/ocs-cacambas-online/main/OCS.user.js';
+    const OCS_REPOSITORY = 'https://github.com/OCSREMOCAO/ocs-cacambas-online';
+    function versionCompare(a,b) {
+        const aa = String(a).split('.').map(x=>parseInt(x,10)||0);
+        const bb = String(b).split('.').map(x=>parseInt(x,10)||0);
+        for(let i=0;i<Math.max(aa.length,bb.length);i++) if((aa[i]||0)!==(bb[i]||0)) return (aa[i]||0)-(bb[i]||0);
+        return 0;
+    }
+    let ocsLatest = null;
+    let ocsUpdateCheckedAt = null;
+    async function checkOCSUpdate() {
+        const controller = new AbortController();
+        const timer = setTimeout(()=>controller.abort(),10000);
+        try {
+            const response = await fetch(OCS_UPDATE_URL + '?ocs_check=' + Date.now(),
+                {cache:'no-store',signal:controller.signal});
+            if (!response.ok) throw new Error('GitHub retornou HTTP '+response.status);
+            const header = (await response.text()).slice(0,3500);
+            const version = header.match(/^\/\/\s*@version\s+(\d+(?:\.\d+)+)/m)?.[1];
+            if (!version) throw new Error('Versão não encontrada no arquivo publicado.');
+            ocsLatest = version;
+            ocsUpdateCheckedAt = Date.now();
+            return {version, available:versionCompare(version, VERSION)>0};
+        } finally {clearTimeout(timer);}
+    }
+    function initOCSPanel() {
+        const STYLE = 'ocs049-settings-css';
+        if (!document.getElementById(STYLE)) {
+            const css = document.createElement('style'); css.id=STYLE;
+            css.textContent = `
+            #ocs049-gear{position:static!important;inset:auto!important;background:transparent!important;color:#ffca00!important;border:0!important;border-radius:0!important;width:100%!important;height:39px!important;box-shadow:none!important;cursor:pointer!important;font-size:23px!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:0!important;line-height:1!important;transition:background .15s ease!important}
+            #ocs049-gear-item{display:list-item!important;position:relative!important;list-style:none!important;margin:0!important;padding:0!important;width:100%!important;background:transparent!important}
+            #ocs049-gear:hover,#ocs049-gear:focus-visible{background:#421f17!important;color:#ffe35c!important;outline:none!important}
+            #ocs049-gear svg{display:block!important;width:22px!important;height:22px!important;stroke:currentColor!important;fill:none!important;stroke-width:2.3!important}
+            #ocs049-modal{position:fixed!important;inset:0!important;z-index:2147483646!important;display:flex!important;align-items:center!important;justify-content:center!important;background:#0008!important;padding:12px!important;font:14px Arial,sans-serif!important}
+            #ocs049-modal[hidden]{display:none!important}
+            #ocs049-modal *{box-sizing:border-box!important}
+            #ocs049-panel{background:#fffdf9!important;color:#342b26!important;border-radius:14px!important;max-width:470px!important;width:100%!important;max-height:90vh!important;overflow:auto!important;box-shadow:0 16px 55px #0006!important;padding:20px!important}
+            #ocs049-panel h2{font-size:19px!important;margin:0!important;color:#342b26!important}
+            #ocs049-panel .ocs049-muted{color:#756b64!important;font-size:12px!important;line-height:1.5!important}
+            #ocs049-panel .ocs049-tabs{display:flex!important;gap:5px!important;margin:16px 0!important}
+            #ocs049-panel .ocs049-tab{flex:1!important;border:1px solid #e0d4c8!important;border-radius:7px!important;background:#f7f2ec!important;color:#4a3d35!important;padding:10px 4px!important;cursor:pointer!important;font-weight:bold!important;font-size:12px!important}
+            #ocs049-panel .ocs049-tab[aria-selected=true]{background:#205d3a!important;color:#fff!important;border-color:#205d3a!important}
+            #ocs049-panel .ocs049-row{display:flex!important;justify-content:space-between!important;align-items:center!important;gap:14px!important;padding:11px 2px!important;border-bottom:1px solid #eee6df!important;cursor:pointer!important}
+            #ocs049-panel input[type=checkbox]{width:19px!important;height:19px!important;accent-color:#21804b!important;flex-shrink:0!important;cursor:pointer!important}
+            #ocs049-panel input[type=range]{width:100%!important;accent-color:#21804b!important}
+            #ocs049-panel .ocs049-actions{display:flex!important;justify-content:flex-end!important;gap:9px!important;margin-top:20px!important}
+            #ocs049-panel .ocs049-btn{background:#205d3a!important;color:#fff!important;border:0!important;border-radius:7px!important;padding:10px 13px!important;cursor:pointer!important;font-size:13px!important}
+            #ocs049-panel .ocs049-secondary{background:#eee7df!important;color:#4a3d35!important}
+            #ocs049-panel .ocs049-status{margin-top:12px!important;font-size:12px!important;line-height:1.5!important;white-space:normal!important}
+            #ocs049-panel .ocs049-version{font-size:23px!important;font-weight:bold!important;color:#205d3a!important;margin:10px 0!important}
+            `;document.head.appendChild(css);
+        }
+        if (document.getElementById('ocs049-gear')) return;
+        const gear=document.createElement('button');gear.id='ocs049-gear';gear.type='button';gear.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06-1.87 1.87-.06-.06A1.7 1.7 0 0 0 16 18.4a1.7 1.7 0 0 0-1 1.56V20h-2.65v-.08a1.7 1.7 0 0 0-1.1-1.56 1.7 1.7 0 0 0-1.85.34l-.06.06-1.87-1.87.06-.06A1.7 1.7 0 0 0 7.9 15a1.7 1.7 0 0 0-1.56-1H6v-2.65h.34a1.7 1.7 0 0 0 1.56-1.1 1.7 1.7 0 0 0-.34-1.85L7.5 8.34l1.87-1.87.06.06A1.7 1.7 0 0 0 11.3 6.9 1.7 1.7 0 0 0 12.35 5.3V5H15v.3a1.7 1.7 0 0 0 1.1 1.56 1.7 1.7 0 0 0 1.85-.34l.06-.06 1.87 1.87-.06.06A1.7 1.7 0 0 0 19.4 10.3a1.7 1.7 0 0 0 1.6 1.05h.1V14h-.1A1.7 1.7 0 0 0 19.4 15Z" transform="translate(-1 -0.5) scale(.98)"/></svg>';gear.title='Configurações OCS';
+        gear.setAttribute('aria-label','Abrir configurações OCS');
+        // Insere como um item real da barra marrom, após o último ícone
+        // do grupo superior (documento/relatórios), nunca fixo na janela.
+        const gearItem=document.createElement('li');
+        gearItem.id='ocs049-gear-item';
+        gearItem.appendChild(gear);
+        function mountGearInSidebar() {
+            const nav=document.querySelector('.nav_modules-nav, .nav-modules-nav, .nav-modules ul, .nav_modules ul');
+            if (!nav) return false;
+            const list=nav.matches('ul,ol') ? nav : nav.querySelector('ul,ol');
+            if (!list) return false;
+            const items=[...list.children].filter(el=>el.tagName==='LI' && el!==gearItem);
+            if (!items.length) return false;
+            // Insere logo após o ícone de documento, que é o último
+            // item do conjunto de ícones superior da barra lateral.
+            const documentItem=items.find(li => {
+                const icon=li.querySelector('.material-icons,.material-icons-outlined,.material-symbols-outlined');
+                return icon && /^(description|insert_drive_file|article|assignment|receipt|text_snippet)$/i.test((icon.textContent||'').trim());
+            });
+            const anchor=documentItem || items[items.length-1];
+            if (anchor.nextElementSibling!==gearItem) anchor.after(gearItem);
+            return true;
+        }
+        if (!mountGearInSidebar()) {
+            const mountTimer=setInterval(()=>{if(mountGearInSidebar())clearInterval(mountTimer);},500);
+            setTimeout(()=>clearInterval(mountTimer),30000);
+        }
+        // Reposiciona se o menu nativo for reconstruído por navegação dinâmica.
+        document.addEventListener('ocs:sidebar-ready',mountGearInSidebar);
+        const overlay=document.createElement('div');overlay.id='ocs049-modal';overlay.hidden=true;
+        const panel=document.createElement('section');panel.id='ocs049-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-label','Configurações OCS');
+        overlay.appendChild(panel);document.body.appendChild(overlay);
+        let draft={...ocsSettings};let tab='general';let status='';
+        function element(tag,txt,cls) {const el=document.createElement(tag);if(txt!==undefined)el.textContent=txt;if(cls)el.className=cls;return el;}
+        function row(parent,key,label,desc) {
+            const line=element('label',undefined,'ocs049-row');const info=element('span');info.appendChild(element('strong',label));
+            if(desc)info.appendChild(element('div',desc,'ocs049-muted'));
+            const check=document.createElement('input');check.type='checkbox';check.checked=!!draft[key];check.addEventListener('change',()=>{draft[key]=check.checked;});
+            line.append(info,check);parent.appendChild(line);
+        }
+        function action(label,callback,secondary=false) {
+            const button=element('button',label,'ocs049-btn'+(secondary?' ocs049-secondary':''));button.type='button';button.addEventListener('click',callback);return button;
+        }
+        function render() {
+            panel.replaceChildren();
+            const head=element('div');head.style.cssText='display:flex;justify-content:space-between;align-items:center;gap:12px';
+            head.appendChild(element('h2','⚙ OCS | Configurações'));
+            head.appendChild(action('✕',()=>{overlay.hidden=true},true));panel.appendChild(head);
+            panel.appendChild(element('div','Gestão financeira, notificações e atualizações','ocs049-muted'));
+            const tabs=element('div',undefined,'ocs049-tabs');
+            for(const [id,label] of [['general','Geral'],['finance','Financeiro'],['updates','Atualizações']]){
+                const button=element('button',label,'ocs049-tab');button.type='button';button.setAttribute('aria-selected',String(tab===id));
+                button.addEventListener('click',()=>{tab=id;status='';render();});tabs.appendChild(button);
+            }panel.appendChild(tabs);
+            const body=element('div');panel.appendChild(body);
+            if(tab==='general') {
+                row(body,'enabled','Ativar OCS completo','Inclui todas as melhorias financeiras e notificações.');
+                row(body,'top','Notificações no topo');row(body,'corner','Notificações no canto da tela');
+                row(body,'sound','Sons dos alertas');
+                const duration=element('div');duration.style.marginTop='17px';
+                const label=element('strong','Tempo das notificações no topo: '+draft.duration+'s');
+                const range=document.createElement('input');range.type='range';range.min='1';range.max='10';range.step='1';range.value=String(draft.duration);
+                range.addEventListener('input',()=>{draft.duration=Number(range.value);label.textContent='Tempo das notificações no topo: '+draft.duration+'s';});
+                duration.append(label,range,element('div','Mesmo tempo para alertas verdes e vermelhos. Máximo: 10 segundos.','ocs049-muted'));body.appendChild(duration);
+            } else if(tab==='finance') {
+                body.appendChild(element('div','Todas as opções vêm ativadas por padrão.','ocs049-muted'));
+                row(body,'summary','Resumo financeiro e indicadores');row(body,'filters','Filtros dos indicadores');
+                row(body,'attachments','Anexos e ícones de clipe');row(body,'duplicates','Duplicar lançamentos');
+                row(body,'interest','Adicionar juros');
+                body.appendChild(element('div','Ao desligar um recurso, os elementos do OCS correspondentes serão ocultados ou removidos; recursos nativos do site permanecem intactos.','ocs049-muted'));
+            } else {
+                body.appendChild(element('div','Versão instalada','ocs049-muted'));
+                body.appendChild(element('div','v'+VERSION,'ocs049-version'));
+                row(body,'autoUpdates','Verificar atualizações automaticamente','Consulta o GitHub periodicamente; a instalação depende do Tampermonkey.');
+                const actions=element('div');actions.style.cssText='display:flex;flex-wrap:wrap;gap:8px;margin-top:16px';
+                const check=action('↻ Verificar atualizações',async()=>{
+                    status='Verificando GitHub…';render();
+                    try {const result=await checkOCSUpdate();status=result.available?'Nova versão '+result.version+' disponível. Clique em Instalar atualização.':'OCS atualizado (v'+VERSION+').';}
+                    catch(e){status='Não foi possível verificar: '+e.message;}render();
+                });actions.appendChild(check);
+                if(ocsLatest && versionCompare(ocsLatest,VERSION)>0) actions.appendChild(action('Instalar atualização',()=>{
+                    // O Tampermonkey reconhece arquivos .user.js e exibe a confirmação de instalação.
+                    window.open(OCS_UPDATE_URL,'_blank','noopener,noreferrer');
+                }));
+                actions.appendChild(action('Abrir GitHub',()=>window.open(OCS_REPOSITORY,'_blank','noopener,noreferrer'),true));
+                body.appendChild(actions);
+                body.appendChild(element('div',status || (ocsUpdateCheckedAt?'Última consulta: '+new Date(ocsUpdateCheckedAt).toLocaleString('pt-BR'):'Clique em Verificar atualizações para consultar a versão publicada.'),'ocs049-status'));
+                body.appendChild(element('div','A atualização automática do Tampermonkey é gerenciada pela extensão; esta opção controla a verificação periódica e o aviso do OCS.','ocs049-muted'));
+            }
+            const foot=element('div',undefined,'ocs049-actions');
+            foot.appendChild(action('Restaurar padrões',()=>{draft={...OCS_DEFAULTS};status='Padrões restaurados na prévia. Clique em Salvar.';render();},true));
+            foot.appendChild(action('Salvar',()=>{saveOCSSettings(draft);overlay.hidden=true;location.reload();}));
+            panel.appendChild(foot);
+        }
+        gear.addEventListener('click',()=>{draft={...ocsSettings};status='';render();overlay.hidden=false;});
+        overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.hidden=true;});
+        document.addEventListener('keydown',e=>{if(e.key==='Escape')overlay.hidden=true;});
+        // Verificação de novas versões, sem baixar/instalar código automaticamente.
+        async function backgroundCheck() {
+            if(!ocsSettings.enabled || !ocsSettings.autoUpdates) return;
+            try {const result=await checkOCSUpdate();
+                if(result.available && !document.getElementById('ocs049-update-hint')) {
+                    const hint=element('button','OCS v'+result.version+' disponível · Atualizar');hint.id='ocs049-update-hint';hint.type='button';
+                    hint.style.cssText='position:fixed;bottom:58px;left:38px;z-index:2147483644;background:#205d3a;color:white;border:0;border-radius:8px;padding:10px;cursor:pointer;box-shadow:0 2px 10px #0004';
+                    hint.addEventListener('click',()=>{tab='updates';draft={...ocsSettings};status='Nova versão '+result.version+' disponível.';render();overlay.hidden=false;hint.remove();});
+                    document.body.appendChild(hint);
+                }
+            }catch(e){console.debug('[OCS] Atualizações:',e.message);}
+        }
+        setTimeout(backgroundCheck,12000);
+        setInterval(backgroundCheck,6*60*60*1000);
+    }
+    if (document.body) initOCSPanel();
+    else document.addEventListener('DOMContentLoaded',initOCSPanel,{once:true});
 
     function initPaymentNotifications() {
         const STYLE_ID = 'ocs0739-payment-style';
@@ -49,7 +245,7 @@
         let checkTimer;
         let initialized = false;
         const SOUND_KEY = 'ocs0736-sound-enabled';
-        let soundEnabled = localStorage.getItem(SOUND_KEY) !== 'false';
+        let soundEnabled = ocsSettings.sound;
         let audioContext = null;
         let audioUnlocked = false;
 
@@ -67,7 +263,7 @@
         document.addEventListener('keydown', unlockAudio);
 
         function playCashRegister() {
-            if (!soundEnabled || !audioUnlocked) return;
+            if (!ocsSettings.enabled || !ocsSettings.sound || !audioUnlocked) return;
             try {
                 const ctx = audioContext;
                 if (!ctx || ctx.state !== 'running') return;
@@ -94,7 +290,7 @@
         }
 
         function playFailureSound() {
-            if (!soundEnabled || !audioUnlocked) return;
+            if (!ocsSettings.enabled || !ocsSettings.sound || !audioUnlocked) return;
             try {
                 const ctx = audioContext;
                 if (!ctx || ctx.state !== 'running') return;
@@ -304,6 +500,7 @@
                 tray.setAttribute('aria-label', 'Notificações persistentes OCS');
                 document.body.appendChild(tray);
             }
+            tray.style.display = (ocsSettings.enabled && ocsSettings.corner) ? 'flex' : 'none';
             const expanded = new Set([...tray.querySelectorAll('.ocs-tray-card.ocs-tray-opened')]
                 .map(el => el.dataset.key));
             tray.replaceChildren();
@@ -463,6 +660,7 @@
                 `;
                 document.head.appendChild(style);
             }
+            if (!ocsSettings.enabled || !ocsSettings.top) return;
             let banner = document.getElementById(BANNER_ID);
             if (!banner) {
                 banner = document.createElement('div');
@@ -475,7 +673,7 @@
                 banner.querySelector('.ocs-payment-sound').addEventListener('click', event => {
                     event.stopPropagation();
                     soundEnabled = !soundEnabled;
-                    localStorage.setItem(SOUND_KEY, String(soundEnabled));
+                    saveOCSSettings({sound:soundEnabled});
                     banner.querySelector('.ocs-payment-sound').textContent = soundEnabled ? '🔊' : '🔇';
                     if (soundEnabled) { unlockAudio(); if (banner.classList.contains('ocs-alert-failure')) playFailureSound(); else playCashRegister(); }
                 });
@@ -519,7 +717,7 @@
                     [item.identifier, item.timestamp, 'Clique para ver quem pagou'].filter(Boolean).join(' · ');
             }
             clearTimeout(hideTimer);
-            hideTimer = setTimeout(() => banner.remove(), 10000);
+            hideTimer = setTimeout(() => banner.remove(), ocsSettings.duration * 1000);
             const currentKey = item.key;
             if (item.kind === 'payment') resolveCustomerName(item).then(name => {
                 if (!name || !banner.isConnected || banner.dataset.paymentHref !== item.href) return;
@@ -536,7 +734,7 @@
                 // Respeita os cinco primeiros (mais antigos) encontrados.
                 entries.slice().reverse().forEach(entry => {
                     seen.add(entry.key);
-                    addToTray(entry);
+                    if (ocsSettings.enabled && ocsSettings.corner) addToTray(entry);
                 });
                 persist();
                 initialized = true;
@@ -546,8 +744,8 @@
                 if (seen.has(entry.key)) continue;
                 seen.add(entry.key);
                 persist();
-                addToTray(entry);
-                showPayment(entry);
+                if (ocsSettings.enabled && ocsSettings.corner) addToTray(entry);
+                if (ocsSettings.enabled && ocsSettings.top) showPayment(entry);
             }
         }
 
@@ -2747,6 +2945,7 @@
     }
 
     function addMenuActions(row) {
+        if (!ocsSettings.enabled) return;
         const dropdown = rowDropdown(row);
 
         if (!dropdown) return;
@@ -2782,7 +2981,7 @@
             `.${PREFIX}-duplicate-menu`
         );
 
-        if (!duplicate) {
+        if (!duplicate && ocsSettings.duplicates) {
             duplicate = makeMenuAction(
                 row,
                 'Duplicar lançamento',
@@ -2796,7 +2995,7 @@
             `.${PREFIX}-interest-menu`
         );
 
-        if (!interest) {
+        if (!interest && ocsSettings.interest) {
             interest = makeMenuAction(
                 row,
                 'Adicionar juros',
@@ -2812,15 +3011,10 @@
         // Adicionar juros
         // Deletar
         // Auditoria
-        anchor.insertAdjacentElement(
-            'afterend',
-            duplicate
-        );
-
-        duplicate.insertAdjacentElement(
-            'afterend',
-            interest
-        );
+        if (ocsSettings.duplicates && duplicate) anchor.insertAdjacentElement('afterend',duplicate);
+        else duplicate?.remove();
+        if (ocsSettings.interest && interest) (ocsSettings.duplicates && duplicate ? duplicate : anchor).insertAdjacentElement('afterend',interest);
+        else interest?.remove();
     }
 
     // =========================================================
@@ -2828,6 +3022,7 @@
     // =========================================================
 
     function processRows() {
+        if (!ocsSettings.enabled) return;
         for (const row of rows()) {
             const first = row.querySelector(
                 '.form-row > .col-1'
@@ -2847,6 +3042,7 @@
                 `.${PREFIX}-clip`
             );
 
+            if (!ocsSettings.attachments) { clip?.remove(); addMenuActions(row); continue; }
             if (!clip) {
                 clip = document.createElement('button');
                 clip.type = 'button';
@@ -2999,6 +3195,7 @@
     }
 
     function updateSummary() {
+        if (!ocsSettings.enabled || !ocsSettings.summary) { document.getElementById(`${PREFIX}-summary`)?.remove(); return; }
         const panel = createSummary();
 
         if (!panel) return;
@@ -3306,6 +3503,7 @@
     }
 
     async function applyNativeFilter(key) {
+        if (!ocsSettings.enabled || !ocsSettings.filters) return;
         if (filtering) return;
 
         filtering = true;
@@ -3413,6 +3611,7 @@
     // =========================================================
 
     function refresh() {
+        if (!ocsSettings.enabled) return;
         processRows();
         updateSummary();
     }

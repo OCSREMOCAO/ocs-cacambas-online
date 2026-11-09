@@ -1,31 +1,23 @@
 # OCS | Caçambas Online
 
-**OCS — Otimizações Caçambas Online**  
-Gestão financeira, anexos, indicadores, filtros, juros, duplicatas e notificações inteligentes.
+Userscript independente de melhorias financeiras, alertas e produtividade para Caçambas Online.
 
-[![INSTALAR OCS](https://img.shields.io/badge/INSTALAR%20OCS-Tampermonkey-16803c?style=for-the-badge&logo=tampermonkey&logoColor=white)](https://raw.githubusercontent.com/OCSREMOCAO/ocs-cacambas-online/main/OCS.user.js)
+[![INSTALAR OCS](https://img.shields.io/badge/INSTALAR%20OCS-2E8B57?style=for-the-badge&logo=tampermonkey&logoColor=white)](https://raw.githubusercontent.com/OCSREMOCAO/ocs-cacambas-online/main/OCS.user.js)
 
-**Versão:** 0.7.48  
-**Autor:** Tarcisio
+## Instalação
 
-## Como instalar
+1. Instale a extensão Tampermonkey.
+2. Clique em **INSTALAR OCS** acima e confirme a instalação na extensão.
+3. Acesse a área de parceiros do Caçambas Online.
 
-1. Instale a extensão **Tampermonkey** no navegador.
-2. Clique no botão verde **INSTALAR OCS** acima.
-3. Confirme a instalação no Tampermonkey.
-4. Acesse o [Caçambas Online](https://app.cacambasonline.com/partner_area/).
+## Configurações
 
-## Funcionalidades
+Clique na engrenagem amarela na barra lateral esquerda, logo abaixo dos ícones do sistema para acessar **Geral**, **Financeiro** e **Atualizações**. Todas as funções começam ativadas, com alertas de até 10 segundos. Preferências ficam salvas no navegador.
 
-- Recursos de gestão financeira, resumos, indicadores e filtros.
-- Anexos, juros e duplicatas.
-- Alertas de pagamento com valor e razão social do cliente, quando identificada.
-- Alertas de atendimentos falhos.
-- Notificações compactas, persistentes e com opção de fechar individualmente ou todas.
-- Avisos sonoros de pagamento e erro.
+A aba Atualizações consulta a versão publicada neste repositório e oferece um link de instalação. O mecanismo de atualização automática do Tampermonkey depende das configurações da extensão.
 
-## Atualizações
+## Publicação de atualizações
 
-O script inclui `@updateURL` e `@downloadURL` para verificar atualizações pelo Tampermonkey. Publique novas versões substituindo `OCS.user.js` e aumentando `@version`.
+Substitua `OCS.user.js` na branch `main` e aumente o valor de `@version`. Não altere o caminho do arquivo.
 
-> **Aviso:** Projeto independente. Não é uma ferramenta oficial do Caçambas Online.
+**Projeto independente, não oficial da plataforma.**
