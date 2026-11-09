@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OCS | Caçambas Online
 // @namespace    OCS-CacambasOnline
-// @version      0.7.55
+// @version      0.7.56
 // @author       Tarcisio
 // @description  Gestão financeira, anexos, indicadores, filtros, juros, duplicatas e notificações inteligentes de pagamentos e atendimentos.
 // @match        https://app.cacambasonline.com/partner_area/*
@@ -18,12 +18,13 @@
  * Script independente para melhorias operacionais e financeiras no Caçambas Online.
  * Não é uma ferramenta oficial da plataforma.
  *
+ * v0.7.56 — Ícone Ferramentas (chave inglesa) amarelo, robusto e integrado à barra lateral.
  * v0.7.55 — Ícone de configurações nativo, maior e mais robusto.
  * v0.7.54 — Correção de desaparecimento da engrenagem após atualização dinâmica da barra lateral.
  * v0.7.50 — Ícone amarelo de configurações integrado à barra lateral marrom.
  * v0.7.49 — Painel Geral / Financeiro / Atualizações, preferências persistentes.
  * HISTÓRICO DE ALTERAÇÕES
- * v0.7.55 — Identidade e descrição do script atualizadas no Tampermonkey.
+ * v0.7.56 — Identidade e descrição do script atualizadas no Tampermonkey.
  * v0.7.46 — Consulta da razão social para identificação do cliente nos alertas.
  * v0.7.45 — Visual harmonizado e maior legibilidade do nome do cliente.
  * v0.7.44 — Botão para fechar todas as notificações abaixo dos quadradinhos.
@@ -38,7 +39,7 @@
 (function () {
     'use strict';
 
-    const VERSION = '0.7.55';
+    const VERSION = '0.7.56';
     const PREFIX = 'ocs0739';
 
     if (window.__OCS_0739__) return;
@@ -122,7 +123,7 @@
             `;document.head.appendChild(css);
         }
         if (document.getElementById('ocs049-gear')) return;
-        const gear=document.createElement('button');gear.id='ocs049-gear';gear.type='button';gear.innerHTML='<span class="ocs049-native-icon material-icons" aria-hidden="true">settings</span>';gear.title='Configurações OCS';
+        const gear=document.createElement('button');gear.id='ocs049-gear';gear.type='button';gear.innerHTML='<span class="ocs049-native-icon material-icons" aria-hidden="true">build</span>';gear.title='Configurações OCS';
         gear.setAttribute('aria-label','Abrir configurações OCS');
         // Insere como um item real da barra marrom, após o último ícone
         // do grupo superior (documento/relatórios), nunca fixo na janela.
