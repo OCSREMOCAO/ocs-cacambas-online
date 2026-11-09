@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OCS | Caçambas Online
 // @namespace    OCS-CacambasOnline
-// @version      0.7.54
+// @version      0.7.55
 // @author       Tarcisio
 // @description  Gestão financeira, anexos, indicadores, filtros, juros, duplicatas e notificações inteligentes de pagamentos e atendimentos.
 // @match        https://app.cacambasonline.com/partner_area/*
@@ -18,11 +18,12 @@
  * Script independente para melhorias operacionais e financeiras no Caçambas Online.
  * Não é uma ferramenta oficial da plataforma.
  *
+ * v0.7.55 — Ícone de configurações nativo, maior e mais robusto.
  * v0.7.54 — Correção de desaparecimento da engrenagem após atualização dinâmica da barra lateral.
  * v0.7.50 — Ícone amarelo de configurações integrado à barra lateral marrom.
  * v0.7.49 — Painel Geral / Financeiro / Atualizações, preferências persistentes.
  * HISTÓRICO DE ALTERAÇÕES
- * v0.7.54 — Identidade e descrição do script atualizadas no Tampermonkey.
+ * v0.7.55 — Identidade e descrição do script atualizadas no Tampermonkey.
  * v0.7.46 — Consulta da razão social para identificação do cliente nos alertas.
  * v0.7.45 — Visual harmonizado e maior legibilidade do nome do cliente.
  * v0.7.44 — Botão para fechar todas as notificações abaixo dos quadradinhos.
@@ -37,7 +38,7 @@
 (function () {
     'use strict';
 
-    const VERSION = '0.7.54';
+    const VERSION = '0.7.55';
     const PREFIX = 'ocs0739';
 
     if (window.__OCS_0739__) return;
@@ -100,7 +101,7 @@
             #ocs049-gear{position:static!important;inset:auto!important;background:transparent!important;color:#ffca00!important;border:0!important;border-radius:0!important;width:100%!important;height:39px!important;box-shadow:none!important;cursor:pointer!important;font-size:23px!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:0!important;line-height:1!important;transition:background .15s ease!important}
             #ocs049-gear-item{display:list-item!important;position:relative!important;list-style:none!important;margin:0!important;padding:0!important;width:100%!important;background:transparent!important}
             #ocs049-gear:hover,#ocs049-gear:focus-visible{background:#421f17!important;color:#ffe35c!important;outline:none!important}
-            #ocs049-gear svg{display:block!important;width:22px!important;height:22px!important;stroke:currentColor!important;fill:none!important;stroke-width:2.3!important}
+            #ocs049-gear .ocs049-native-icon{display:inline-flex!important;align-items:center!important;justify-content:center!important;width:26px!important;height:26px!important;font-family:"Material Icons"!important;font-weight:normal!important;font-style:normal!important;font-size:26px!important;line-height:1!important;letter-spacing:normal!important;text-transform:none!important;white-space:nowrap!important;word-wrap:normal!important;direction:ltr!important;-webkit-font-feature-settings:"liga"!important;font-feature-settings:"liga"!important;-webkit-font-smoothing:antialiased!important;filter:drop-shadow(0 0 .25px currentColor)!important}
             #ocs049-modal{position:fixed!important;inset:0!important;z-index:2147483646!important;display:flex!important;align-items:center!important;justify-content:center!important;background:#0008!important;padding:12px!important;font:14px Arial,sans-serif!important}
             #ocs049-modal[hidden]{display:none!important}
             #ocs049-modal *{box-sizing:border-box!important}
@@ -121,7 +122,7 @@
             `;document.head.appendChild(css);
         }
         if (document.getElementById('ocs049-gear')) return;
-        const gear=document.createElement('button');gear.id='ocs049-gear';gear.type='button';gear.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06-1.87 1.87-.06-.06A1.7 1.7 0 0 0 16 18.4a1.7 1.7 0 0 0-1 1.56V20h-2.65v-.08a1.7 1.7 0 0 0-1.1-1.56 1.7 1.7 0 0 0-1.85.34l-.06.06-1.87-1.87.06-.06A1.7 1.7 0 0 0 7.9 15a1.7 1.7 0 0 0-1.56-1H6v-2.65h.34a1.7 1.7 0 0 0 1.56-1.1 1.7 1.7 0 0 0-.34-1.85L7.5 8.34l1.87-1.87.06.06A1.7 1.7 0 0 0 11.3 6.9 1.7 1.7 0 0 0 12.35 5.3V5H15v.3a1.7 1.7 0 0 0 1.1 1.56 1.7 1.7 0 0 0 1.85-.34l.06-.06 1.87 1.87-.06.06A1.7 1.7 0 0 0 19.4 10.3a1.7 1.7 0 0 0 1.6 1.05h.1V14h-.1A1.7 1.7 0 0 0 19.4 15Z" transform="translate(-1 -0.5) scale(.98)"/></svg>';gear.title='Configurações OCS';
+        const gear=document.createElement('button');gear.id='ocs049-gear';gear.type='button';gear.innerHTML='<span class="ocs049-native-icon material-icons" aria-hidden="true">settings</span>';gear.title='Configurações OCS';
         gear.setAttribute('aria-label','Abrir configurações OCS');
         // Insere como um item real da barra marrom, após o último ícone
         // do grupo superior (documento/relatórios), nunca fixo na janela.
