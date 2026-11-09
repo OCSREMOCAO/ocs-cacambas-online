@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OCS | Caçambas Online
 // @namespace    OCS-CacambasOnline
-// @version      0.7.52
+// @version      0.7.53
 // @author       Tarcisio
 // @description  Gestão financeira, anexos, indicadores, filtros, juros, duplicatas e notificações inteligentes de pagamentos e atendimentos.
 // @match        https://app.cacambasonline.com/partner_area/*
@@ -18,11 +18,11 @@
  * Script independente para melhorias operacionais e financeiras no Caçambas Online.
  * Não é uma ferramenta oficial da plataforma.
  *
- * v0.7.52 — Engrenagem inserida na própria lista lateral, imediatamente após o ícone de documento.
+ * v0.7.53 — Correção de desaparecimento da engrenagem após atualização dinâmica da barra lateral.
  * v0.7.50 — Ícone amarelo de configurações integrado à barra lateral marrom.
  * v0.7.49 — Painel Geral / Financeiro / Atualizações, preferências persistentes.
  * HISTÓRICO DE ALTERAÇÕES
- * v0.7.52 — Identidade e descrição do script atualizadas no Tampermonkey.
+ * v0.7.53 — Identidade e descrição do script atualizadas no Tampermonkey.
  * v0.7.46 — Consulta da razão social para identificação do cliente nos alertas.
  * v0.7.45 — Visual harmonizado e maior legibilidade do nome do cliente.
  * v0.7.44 — Botão para fechar todas as notificações abaixo dos quadradinhos.
@@ -37,7 +37,7 @@
 (function () {
     'use strict';
 
-    const VERSION = '0.7.52';
+    const VERSION = '0.7.53';
     const PREFIX = 'ocs0739';
 
     if (window.__OCS_0739__) return;
@@ -145,12 +145,31 @@
             if (anchor.nextElementSibling!==gearItem) anchor.after(gearItem);
             return true;
         }
-        if (!mountGearInSidebar()) {
-            const mountTimer=setInterval(()=>{if(mountGearInSidebar())clearInterval(mountTimer);},500);
-            setTimeout(()=>clearInterval(mountTimer),30000);
+        // O Caçambas Online recria a lista do menu em navegações internas.
+        // O observador restaura o mesmo botão, sem recriar eventos ou painel.
+        let gearMountQueued = false;
+        function queueGearMount() {
+            if (gearMountQueued) return;
+            gearMountQueued = true;
+            requestAnimationFrame(() => {
+                gearMountQueued = false;
+                mountGearInSidebar();
+            });
         }
-        // Reposiciona se o menu nativo for reconstruído por navegação dinâmica.
-        document.addEventListener('ocs:sidebar-ready',mountGearInSidebar);
+        mountGearInSidebar();
+        const sidebarObserver = new MutationObserver(() => {
+            const list = document.querySelector('.nav_modules-nav, .nav-modules-nav, .nav-modules ul, .nav_modules ul');
+            if (!list) return;
+            // Não movimenta a engrenagem quando ela já está no lugar.
+            if (!gearItem.isConnected || !list.contains(gearItem)) queueGearMount();
+        });
+        sidebarObserver.observe(document.body, {childList:true,subtree:true});
+        // Proteção adicional contra alterações de menu que não geram
+        // eventos de navegação. Verifica apenas a presença do item.
+        setInterval(() => {
+            if (!gearItem.isConnected) mountGearInSidebar();
+        }, 2500);
+        document.addEventListener('ocs:sidebar-ready', queueGearMount);
         const overlay=document.createElement('div');overlay.id='ocs049-modal';overlay.hidden=true;
         const panel=document.createElement('section');panel.id='ocs049-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-label','Configurações OCS');
         overlay.appendChild(panel);document.body.appendChild(overlay);
