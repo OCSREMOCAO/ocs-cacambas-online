@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OCS | Caçambas Online
 // @namespace    OCS-CacambasOnline
-// @version      0.7.53
+// @version      0.7.54
 // @author       Tarcisio
 // @description  Gestão financeira, anexos, indicadores, filtros, juros, duplicatas e notificações inteligentes de pagamentos e atendimentos.
 // @match        https://app.cacambasonline.com/partner_area/*
@@ -18,11 +18,11 @@
  * Script independente para melhorias operacionais e financeiras no Caçambas Online.
  * Não é uma ferramenta oficial da plataforma.
  *
- * v0.7.53 — Correção de desaparecimento da engrenagem após atualização dinâmica da barra lateral.
+ * v0.7.54 — Correção de desaparecimento da engrenagem após atualização dinâmica da barra lateral.
  * v0.7.50 — Ícone amarelo de configurações integrado à barra lateral marrom.
  * v0.7.49 — Painel Geral / Financeiro / Atualizações, preferências persistentes.
  * HISTÓRICO DE ALTERAÇÕES
- * v0.7.53 — Identidade e descrição do script atualizadas no Tampermonkey.
+ * v0.7.54 — Identidade e descrição do script atualizadas no Tampermonkey.
  * v0.7.46 — Consulta da razão social para identificação do cliente nos alertas.
  * v0.7.45 — Visual harmonizado e maior legibilidade do nome do cliente.
  * v0.7.44 — Botão para fechar todas as notificações abaixo dos quadradinhos.
@@ -37,7 +37,7 @@
 (function () {
     'use strict';
 
-    const VERSION = '0.7.53';
+    const VERSION = '0.7.54';
     const PREFIX = 'ocs0739';
 
     if (window.__OCS_0739__) return;
@@ -162,12 +162,14 @@
             if (!list) return;
             // Não movimenta a engrenagem quando ela já está no lugar.
             if (!gearItem.isConnected || !list.contains(gearItem)) queueGearMount();
+            if (!overlay.isConnected) document.body.appendChild(overlay);
         });
         sidebarObserver.observe(document.body, {childList:true,subtree:true});
         // Proteção adicional contra alterações de menu que não geram
         // eventos de navegação. Verifica apenas a presença do item.
         setInterval(() => {
             if (!gearItem.isConnected) mountGearInSidebar();
+            if (!overlay.isConnected) document.body.appendChild(overlay);
         }, 2500);
         document.addEventListener('ocs:sidebar-ready', queueGearMount);
         const overlay=document.createElement('div');overlay.id='ocs049-modal';overlay.hidden=true;
@@ -235,7 +237,22 @@
             foot.appendChild(action('Salvar',()=>{saveOCSSettings(draft);overlay.hidden=true;location.reload();}));
             panel.appendChild(foot);
         }
-        gear.addEventListener('click',()=>{draft={...ocsSettings};status='';render();overlay.hidden=false;});
+        // O menu do site tem handlers delegados: impede que o clique na
+        // engrenagem seja tratado como navegação nativa.
+        for (const type of ['pointerdown','mousedown','mouseup','click']) {
+            gear.addEventListener(type, event => {
+                event.stopPropagation();
+                if (type === 'click') {
+                    event.preventDefault();
+                    draft={...ocsSettings};status='';render();
+                    if (!overlay.isConnected) document.body.appendChild(overlay);
+                    overlay.hidden=false;
+                }
+            });
+        }
+        gear.addEventListener('keydown', event => {
+            if (event.key === 'Enter' || event.key === ' ') event.stopPropagation();
+        });
         overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.hidden=true;});
         document.addEventListener('keydown',e=>{if(e.key==='Escape')overlay.hidden=true;});
         // Verificação de novas versões, sem baixar/instalar código automaticamente.
