@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OCS | Caçambas Online
 // @namespace    OCS-CacambasOnline
-// @version      0.7.63
+// @version      0.7.64
 // @author       Tarcisio
 // @description  Gestão financeira, anexos, indicadores, filtros, juros, duplicatas e notificações inteligentes de pagamentos e atendimentos.
 // @match        https://app.cacambasonline.com/partner_area/*
@@ -3718,11 +3718,11 @@
 
 
 
-// OCS 0.7.63 — CTRs selecionadas disponíveis também em Concluídos.
+// OCS 0.7.64 — Menu AÇÕES compatível com dropdowns personalizados.
 (function ocsCTRViewer(){
   'use strict';
-  if(window.__OCS_CTR_0763__)return;
-  window.__OCS_CTR_0763__=true;
+  if(window.__OCS_CTR_0764__)return;
+  window.__OCS_CTR_0764__=true;
   if(!location.pathname.includes('/operational/order_jobs'))return;
   const DOC_PATH=/\/partner_area\/operational\/environmental_documentations\/[0-9a-f-]{30,}/i;
   const SETTINGS_KEY='ocs-settings-v0749';
@@ -3807,18 +3807,28 @@
     }
   }
   function actionsMenu(){
-    // Em Concluídos o site pode ocultar Gerar MTR, mas mantém AÇÕES.
-    const menus=[...document.querySelectorAll('.dropdown-menu')];
-    const mtr=menus.map(menu=>[...menu.querySelectorAll('a,button')].find(el=>/gerar mtr/i.test(el.textContent||''))).find(Boolean);
-    if(mtr)return {menu:mtr.closest('.dropdown-menu'),anchor:mtr.closest('li')||mtr};
-    const toggles=[...document.querySelectorAll('button,a')].filter(el=>
-      /\ba[çc][õo]es\b/i.test((el.textContent||'').replace(/\s+/g,' ')) &&
-      !el.closest('.dropdown-menu') && !el.closest('tr'));
-    for(const toggle of toggles){
-      const dropdown=toggle.closest('.dropdown');
-      const menu=dropdown?.querySelector('.dropdown-menu') ||
-        (toggle.getAttribute('aria-controls') && document.getElementById(toggle.getAttribute('aria-controls'))) ||
-        (toggle.getAttribute('data-target') && document.querySelector(toggle.getAttribute('data-target')));
+    // Prioriza o menu efetivamente exibido, independentemente do framework CSS.
+    const visible=el=>!!(el.getClientRects().length);
+    const labels=[...document.querySelectorAll('a,button,[role="menuitem"],li,span,div')]
+      .filter(el=>el.children.length<4 && /^(limpar sele[çc][ãa]o|atualizar informa[çc][õo]es|trocar respons[áa]vel)$/i.test((el.textContent||'').trim()));
+    for(const label of labels){
+      const action=label.closest('a,button,[role="menuitem"],li')||label;
+      let node=action.parentElement;
+      for(let depth=0;node&&depth<5;node=node.parentElement,depth++){
+        const t=(node.textContent||'').toLowerCase();
+        if(/limpar sele[çc][ãa]o/.test(t)&&(/trocar respons/.test(t)||/atualizar informa/.test(t))){
+          if(visible(node))return {menu:node,anchor:action};
+        }
+      }
+    }
+    const menus=[...document.querySelectorAll('.dropdown-menu,[role="menu"],.popover-content')];
+    const mtr=menus.flatMap(menu=>[...menu.querySelectorAll('a,button')].filter(el=>/gerar mtr/i.test(el.textContent||''))).find(Boolean);
+    if(mtr)return {menu:mtr.closest('.dropdown-menu,[role="menu"]')||mtr.parentElement,anchor:mtr.closest('li')||mtr};
+    for(const toggle of document.querySelectorAll('button,a,[role="button"]')){
+      if(!/^\s*(?:\d+\s*)?a[çc][õo]es\s*$/i.test((toggle.textContent||'').trim()))continue;
+      const wrap=toggle.closest('.dropdown,[data-controller*="dropdown"]')||toggle.parentElement;
+      const menu=wrap?.querySelector('.dropdown-menu,[role="menu"],ul') ||
+        (toggle.getAttribute('aria-controls')&&document.getElementById(toggle.getAttribute('aria-controls')));
       if(menu)return {menu,anchor:null};
     }
     return null;
@@ -3834,10 +3844,11 @@
     const current=existing.find(el=>menu.contains(el));
     existing.filter(el=>el!==current).forEach(el=>el.remove());
     if(current){
-      current.dataset.count=String(rows.length);
-      current.querySelector('.ocs-ctr-batch-label').textContent='Exibir CTRs selecionadas ('+rows.length+')';
+      if(current.dataset.count!==String(rows.length))current.dataset.count=String(rows.length);
+      const label='Exibir CTRs selecionadas ('+rows.length+')';
+      if(current.querySelector('.ocs-ctr-batch-label')?.textContent!==label)current.querySelector('.ocs-ctr-batch-label').textContent=label;
       current.classList.toggle('disabled',!rows.length);
-      current.setAttribute('aria-disabled',String(!rows.length));
+      if(current.getAttribute('aria-disabled')!==String(!rows.length))current.setAttribute('aria-disabled',String(!rows.length));
       return;
     }
     const item=document.createElement('a');item.href='#';
