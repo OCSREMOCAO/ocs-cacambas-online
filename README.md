@@ -1,22 +1,19 @@
 # OCS | Caçambas Online
 
-Automação de funcionalidades financeiras, notificações, documentação ambiental e produtividade para o Caçambas Online.
+Userscript para Tampermonkey com melhorias operacionais e financeiras no Caçambas Online.
 
-### Instalação
+**Versão atual: 0.7.61**
 
-[![INSTALAR OCS](https://img.shields.io/badge/INSTALAR%20OCS-28a745?style=for-the-badge&logo=tampermonkey&logoColor=white)](https://github.com/OCSREMOCAO/ocs-cacambas-online/raw/refs/heads/main/OCS.user.js)
+[**Instalar ou atualizar OCS no Tampermonkey**](https://raw.githubusercontent.com/OCSREMOCAO/ocs-cacambas-online/main/OCS.user.js)
 
-**Versão:** 0.7.60
+## Atualização 0.7.61
 
-**Requisito:** extensão Tampermonkey instalada no navegador.
+- Ajustes na busca do comprovante do pedido e proteção contra buscas repetidas.
+- Mantidos os atalhos de exibição de CTR e comprovante de pedido.
+- Preservadas as funcionalidades financeiras, notificações e configurações da versão anterior.
 
-Clique no botão acima para abrir o instalador do OCS.
+## Publicar no GitHub
 
-### Funcionalidades
+Substitua os arquivos `OCS.user.js` e `README.md` na raiz da branch `main` do repositório. Depois, confira a versão instalada pelo Tampermonkey.
 
-- Gestão financeira e indicadores.
-- Notificações de pagamentos e atendimentos.
-- Atalhos para documentação ambiental e pedidos.
-- Download de comprovantes de pedidos.
-- Configurações personalizadas.
-- Verificação de atualizações pelo GitHub.
+> Script independente, não oficial da plataforma. O funcionamento do download depende da estrutura e das permissões do site e deve ser validado no navegador.
