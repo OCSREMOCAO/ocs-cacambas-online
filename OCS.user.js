@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OCS | Caçambas Online
 // @namespace    OCS-CacambasOnline
-// @version      0.7.65
+// @version      0.7.66
 // @author       Tarcisio
 // @description  Gestão financeira, anexos, indicadores, filtros, juros, duplicatas e notificações inteligentes de pagamentos e atendimentos.
 // @match        https://app.cacambasonline.com/partner_area/*
@@ -18,6 +18,7 @@
  * Script independente para melhorias operacionais e financeiras no Caçambas Online.
  * Não é uma ferramenta oficial da plataforma.
  *
+ * v0.7.66 — CTRs em lotes de 5, intervalos de 10 segundos e progresso.
  * v0.7.65 — Sincronizada versão exibida e verificação de atualizações.
  * v0.7.62 — Corrigida busca do comprovante do pedido sem recursão infinita.
  * v0.7.58 — Exibição individual e múltipla de CTR.
@@ -43,7 +44,7 @@
     'use strict';
 
     // Prefere a versão informada pelo gerenciador, com fallback alinhado ao @version.
-    const VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '0.7.65';
+    const VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '0.7.66';
     const PREFIX = 'ocs0739';
 
     if (window.__OCS_0739__) return;
@@ -3742,6 +3743,13 @@
     .ocs-ctr-view-single:hover{background:#fff0c0!important;color:#a36a00!important}
     .ocs-ctr-view-single .material-icons{font-size:16px!important;line-height:1!important}
     .ocs-ctr-view-batch{color:#1680ed!important;cursor:pointer!important}
+    #ocs-ctr-progress{position:fixed;right:22px;bottom:32px;width:350px;max-width:calc(100vw - 44px);z-index:2147483601;background:#fff;color:#322522;border:1px solid #d9c9b7;border-radius:10px;padding:15px;box-shadow:0 5px 25px #0004;font:13px Arial,sans-serif}
+    .ocs-ctr-progress-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;font-size:15px}
+    .ocs-ctr-progress-close{background:none;border:0;font-size:23px;cursor:pointer;color:#655}
+    .ocs-ctr-progress-info{font-size:12px;line-height:1.5;margin-bottom:9px}
+    .ocs-ctr-progress-track{height:12px;border-radius:8px;background:#ece8e4;overflow:hidden}
+    .ocs-ctr-progress-fill{height:100%;width:0%;background:#168b50;transition:width .25s ease}
+    .ocs-ctr-progress-foot{font-size:12px;color:#665a51;margin-top:9px;line-height:1.4}
     #ocs-ctr-view-message{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:2147483600;background:#2b1010;color:white;padding:11px 15px;border-radius:7px;box-shadow:0 3px 15px #0005;font:13px Arial,sans-serif;max-width:90vw}
   `;(document.head||document.documentElement).appendChild(style);
   function notice(text){
@@ -3861,22 +3869,59 @@
     item.setAttribute('aria-disabled',String(!rows.length));
     item.addEventListener('click',async e=>{
       e.preventDefault();e.stopPropagation();
+      if(window.__ocsCtrBatchRunning){notice('Já existe uma abertura de CTRs em andamento.');return}
       const selected=selectedRows();
       if(!selected.length){notice('Selecione um ou mais atendimentos.');return}
-      if(selected.length>8&&!confirm('Abrir '+selected.length+' CTRs em novas abas?'))return;
-      const tasks=selected.map(row=>({href:docLinks(row)[0]?.href,tab:null}));
-      // Abas reservadas no clique, antes de operações assíncronas.
-      for(const task of tasks)if(task.href)task.tab=reserveTab();
-      let success=0,errors=0,blocked=0,withoutDoc=0;
-      for(const task of tasks){
-        if(!task.href){withoutDoc++;continue}
-        try{
-          const url=await getViewUrl(task.href);
-          if(task.tab&&!task.tab.closed){task.tab.location.replace(url);success++}
-          else blocked++;
-        }catch(err){errors++;if(task.tab&&!task.tab.closed)task.tab.close()}
-      }
-      notice('CTRs: '+success+' aberta(s), '+errors+' indisponível(is)'+(withoutDoc?', '+withoutDoc+' sem link de CTR':'')+(blocked?', '+blocked+' aba(s) bloqueada(s)':'')+'.');
+      if(selected.length>8&&!confirm('Abrir '+selected.length+' CTRs em grupos de até 5 abas, com 10 segundos entre os grupos?'))return;
+      const tasks=selected.map(row=>({href:docLinks(row)[0]?.href}));
+      const total=tasks.length, batchSize=5, delay=10000;
+      let opened=0, errors=0, blocked=0, withoutDoc=0, processed=0;
+      window.__ocsCtrBatchRunning=true;
+      const panel=document.createElement('section');
+      panel.id='ocs-ctr-progress';
+      panel.setAttribute('role','status');
+      panel.setAttribute('aria-live','polite');
+      panel.innerHTML=`<div class="ocs-ctr-progress-head"><strong>Abertura de CTRs</strong><button type="button" class="ocs-ctr-progress-close" aria-label="Fechar painel">×</button></div><div class="ocs-ctr-progress-info"></div><div class="ocs-ctr-progress-track"><div class="ocs-ctr-progress-fill"></div></div><div class="ocs-ctr-progress-foot"></div>`;
+      document.getElementById('ocs-ctr-progress')?.remove();
+      document.body.appendChild(panel);
+      panel.querySelector('.ocs-ctr-progress-close').addEventListener('click',()=>panel.remove());
+      const render=(message='')=>{
+        if(!panel.isConnected)return;
+        panel.querySelector('.ocs-ctr-progress-info').textContent=`Selecionadas: ${total}  |  Guias abertas: ${opened}  |  Processadas: ${processed}/${total}`;
+        panel.querySelector('.ocs-ctr-progress-fill').style.width=(processed/total*100)+'%';
+        panel.querySelector('.ocs-ctr-progress-foot').textContent=message||`Falhas: ${errors}  |  Bloqueadas: ${blocked}  |  Sem CTR: ${withoutDoc}`;
+      };
+      render('Preparando primeiro grupo…');
+      try{
+        for(let offset=0;offset<total;offset+=batchSize){
+          const group=tasks.slice(offset,offset+batchSize);
+          const groupNumber=Math.floor(offset/batchSize)+1;
+          const groupTotal=Math.ceil(total/batchSize);
+          render(`Abrindo grupo ${groupNumber} de ${groupTotal}…`);
+          // Cada grupo abre até cinco abas; nunca reserva todas as abas antecipadamente.
+          // A abertura após um intervalo pode ser bloqueada pelo navegador.
+          const reserved=group.map(task=>({href:task.href,tab:task.href?reserveTab():null}));
+          for(const task of reserved){
+            if(!task.href){withoutDoc++;processed++;render(`Grupo ${groupNumber}/${groupTotal} — sem CTR`);continue}
+            if(!task.tab){blocked++;processed++;render(`Grupo ${groupNumber}/${groupTotal} — popup bloqueado`);continue}
+            try{
+              const url=await getViewUrl(task.href);
+              if(!task.tab.closed){task.tab.location.replace(url);opened++}
+              else blocked++;
+            }catch(err){errors++;try{if(!task.tab.closed)task.tab.close()}catch(_){}}
+            processed++;
+            render(`Grupo ${groupNumber} de ${groupTotal} — ${processed}/${total} processadas`);
+          }
+          if(offset+batchSize<total){
+            for(let remaining=10;remaining>0;remaining--){
+              render(`Próximo grupo em ${remaining} segundo${remaining===1?'':'s'}…`);
+              await new Promise(resolve=>setTimeout(resolve,1000));
+            }
+          }
+        }
+        render(`Concluído! ${opened} guia(s) aberta(s), ${errors} erro(s), ${blocked} bloqueada(s), ${withoutDoc} sem CTR.`);
+        if(blocked)notice(`${blocked} guia(s) bloqueada(s). Permita pop-ups para este site no Chrome.`);
+      }finally{window.__ocsCtrBatchRunning=false}
     });
     if(anchor){
       // Não inserir <a> diretamente como irmão de <li> em listas.
