@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OCS | Caçambas Online
 // @namespace    OCS-CacambasOnline
-// @version      0.7.57
+// @version      0.7.58
 // @author       Tarcisio
 // @description  Gestão financeira, anexos, indicadores, filtros, juros, duplicatas e notificações inteligentes de pagamentos e atendimentos.
 // @match        https://app.cacambasonline.com/partner_area/*
@@ -18,14 +18,14 @@
  * Script independente para melhorias operacionais e financeiras no Caçambas Online.
  * Não é uma ferramenta oficial da plataforma.
  *
- * v0.7.57 — Download individual e múltiplo de CTR via documentação ambiental.
+ * v0.7.58 — Download individual e múltiplo de CTR via documentação ambiental.
  * v0.7.56 — Ícone Ferramentas (chave inglesa) amarelo, robusto e integrado à barra lateral.
  * v0.7.55 — Ícone de configurações nativo, maior e mais robusto.
  * v0.7.54 — Correção de desaparecimento da engrenagem após atualização dinâmica da barra lateral.
  * v0.7.50 — Ícone amarelo de configurações integrado à barra lateral marrom.
  * v0.7.49 — Painel Geral / Financeiro / Atualizações, preferências persistentes.
  * HISTÓRICO DE ALTERAÇÕES
- * v0.7.57 — Identidade e descrição do script atualizadas no Tampermonkey.
+ * v0.7.58 — Identidade e descrição do script atualizadas no Tampermonkey.
  * v0.7.46 — Consulta da razão social para identificação do cliente nos alertas.
  * v0.7.45 — Visual harmonizado e maior legibilidade do nome do cliente.
  * v0.7.44 — Botão para fechar todas as notificações abaixo dos quadradinhos.
@@ -40,7 +40,7 @@
 (function () {
     'use strict';
 
-    const VERSION = '0.7.57';
+    const VERSION = '0.7.58';
     const PREFIX = 'ocs0739';
 
     if (window.__OCS_0739__) return;
@@ -48,7 +48,7 @@
 
     const OCS_SETTINGS_KEY = 'ocs-settings-v0749';
     const OCS_DEFAULTS = Object.freeze({enabled:true, top:true, corner:true, sound:true,
-        duration:10, summary:true, filters:true, attachments:true, duplicates:true, interest:true, autoUpdates:true});
+        duration:10, summary:true, filters:true, attachments:true, duplicates:true, interest:true, autoUpdates:true, ctrSingle:true, ctrBatch:true});
     function readOCSSettings() {
         try {
             const stored = JSON.parse(localStorage.getItem(OCS_SETTINGS_KEY) || '{}');
@@ -104,10 +104,11 @@
             #ocs049-gear-item{display:list-item!important;position:relative!important;list-style:none!important;margin:0!important;padding:0!important;width:100%!important;background:transparent!important}
             #ocs049-gear:hover,#ocs049-gear:focus-visible{background:#421f17!important;color:#ffe35c!important;outline:none!important}
             #ocs049-gear .ocs049-native-icon{display:inline-flex!important;align-items:center!important;justify-content:center!important;width:26px!important;height:26px!important;font-family:"Material Icons"!important;font-weight:normal!important;font-style:normal!important;font-size:26px!important;line-height:1!important;letter-spacing:normal!important;text-transform:none!important;white-space:nowrap!important;word-wrap:normal!important;direction:ltr!important;-webkit-font-feature-settings:"liga"!important;font-feature-settings:"liga"!important;-webkit-font-smoothing:antialiased!important;filter:drop-shadow(0 0 .25px currentColor)!important}
+            #ocs049-gear-item .ocs-update-dot{position:absolute!important;right:3px!important;top:2px!important;width:10px!important;height:10px!important;border-radius:50%!important;background:#f04b36!important;border:2px solid #2b1010!important;box-shadow:0 0 0 1px #ffe04b!important;pointer-events:none!important}
             #ocs049-modal{position:fixed!important;inset:0!important;z-index:2147483646!important;display:flex!important;align-items:center!important;justify-content:center!important;background:#0008!important;padding:12px!important;font:14px Arial,sans-serif!important}
             #ocs049-modal[hidden]{display:none!important}
             #ocs049-modal *{box-sizing:border-box!important}
-            #ocs049-panel{background:#fffdf9!important;color:#342b26!important;border-radius:14px!important;max-width:470px!important;width:100%!important;max-height:90vh!important;overflow:auto!important;box-shadow:0 16px 55px #0006!important;padding:20px!important}
+            #ocs049-panel{background:#fffdf9!important;color:#342b26!important;border-radius:14px!important;max-width:560px!important;width:100%!important;max-height:90vh!important;overflow:auto!important;box-shadow:0 16px 55px #0006!important;padding:20px!important}
             #ocs049-panel h2{font-size:19px!important;margin:0!important;color:#342b26!important}
             #ocs049-panel .ocs049-muted{color:#756b64!important;font-size:12px!important;line-height:1.5!important}
             #ocs049-panel .ocs049-tabs{display:flex!important;gap:5px!important;margin:16px 0!important}
@@ -196,7 +197,7 @@
             head.appendChild(action('✕',()=>{overlay.hidden=true},true));panel.appendChild(head);
             panel.appendChild(element('div','Gestão financeira, notificações e atualizações','ocs049-muted'));
             const tabs=element('div',undefined,'ocs049-tabs');
-            for(const [id,label] of [['general','Geral'],['finance','Financeiro'],['updates','Atualizações']]){
+            for(const [id,label] of [['general','Geral'],['finance','Financeiro'],['ctr','CTR'],['updates','Atualizações']]){
                 const button=element('button',label,'ocs049-tab');button.type='button';button.setAttribute('aria-selected',String(tab===id));
                 button.addEventListener('click',()=>{tab=id;status='';render();});tabs.appendChild(button);
             }panel.appendChild(tabs);
@@ -216,6 +217,11 @@
                 row(body,'attachments','Anexos e ícones de clipe');row(body,'duplicates','Duplicar lançamentos');
                 row(body,'interest','Adicionar juros');
                 body.appendChild(element('div','Ao desligar um recurso, os elementos do OCS correspondentes serão ocultados ou removidos; recursos nativos do site permanecem intactos.','ocs049-muted'));
+            } else if(tab==='ctr') {
+                body.appendChild(element('div','Atalhos de exibição da documentação ambiental. Não utiliza a opção Imprimir Documentação.','ocs049-muted'));
+                row(body,'ctrSingle','Exibir CTR individual','Mostra um botão ao lado do acesso à documentação ambiental.');
+                row(body,'ctrBatch','Exibir CTRs selecionados','Adiciona a opção em AÇÕES, abaixo de Gerar MTR, quando houver seleção.');
+                body.appendChild(element('div','Os documentos são abertos em novas abas pelo endereço de Exibir Documentação Externa. O site externo pode exigir sessão ativa e o navegador pode bloquear múltiplas abas.','ocs049-muted'));
             } else {
                 body.appendChild(element('div','Versão instalada','ocs049-muted'));
                 body.appendChild(element('div','v'+VERSION,'ocs049-version'));
@@ -223,7 +229,7 @@
                 const actions=element('div');actions.style.cssText='display:flex;flex-wrap:wrap;gap:8px;margin-top:16px';
                 const check=action('↻ Verificar atualizações',async()=>{
                     status='Verificando GitHub…';render();
-                    try {const result=await checkOCSUpdate();status=result.available?'Nova versão '+result.version+' disponível. Clique em Instalar atualização.':'OCS atualizado (v'+VERSION+').';}
+                    try {const result=await checkOCSUpdate();if(result.available)markUpdateAvailable(result.version);status=result.available?'Nova versão '+result.version+' disponível. Clique em Instalar atualização.':'OCS atualizado (v'+VERSION+').';}
                     catch(e){status='Não foi possível verificar: '+e.message;}render();
                 });actions.appendChild(check);
                 if(ocsLatest && versionCompare(ocsLatest,VERSION)>0) actions.appendChild(action('Instalar atualização',()=>{
@@ -258,10 +264,21 @@
         });
         overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.hidden=true;});
         document.addEventListener('keydown',e=>{if(e.key==='Escape')overlay.hidden=true;});
+        function markUpdateAvailable(version) {
+            if (!gearItem.querySelector('.ocs-update-dot')) {
+                const dot=document.createElement('span');
+                dot.className='ocs-update-dot';
+                dot.setAttribute('aria-hidden','true');
+                gearItem.appendChild(dot);
+            }
+            gear.title='Configurações OCS — atualização '+version+' disponível';
+            gear.setAttribute('aria-label',gear.title);
+        }
         // Verificação de novas versões, sem baixar/instalar código automaticamente.
         async function backgroundCheck() {
             if(!ocsSettings.enabled || !ocsSettings.autoUpdates) return;
             try {const result=await checkOCSUpdate();
+                if(result.available) markUpdateAvailable(result.version);
                 if(result.available && !document.getElementById('ocs049-update-hint')) {
                     const hint=element('button','OCS v'+result.version+' disponível · Atualizar');hint.id='ocs049-update-hint';hint.type='button';
                     hint.style.cssText='position:fixed;bottom:58px;left:38px;z-index:2147483644;background:#205d3a;color:white;border:0;border-radius:8px;padding:10px;cursor:pointer;box-shadow:0 2px 10px #0004';
@@ -3699,118 +3716,136 @@
 })();
 
 
-// OCS 0.7.57 — Acesso rápido aos CTRs, sem alterar as funções existentes.
-(function ocsCTRDownloads(){
+
+// OCS 0.7.58 — Atalhos para EXIBIR CTR, sem acionar impressão/download.
+(function ocsCTRViewer(){
   'use strict';
-  if (window.__OCS_CTR_0757__) return;
-  window.__OCS_CTR_0757__ = true;
-  if (!location.pathname.includes('/operational/order_jobs')) return;
-  const DOC_PATH = /\/partner_area\/operational\/environmental_documentations\/[0-9a-f-]{30,}/i;
-  const STYLE_ID = 'ocs-ctr-0757-style';
-  if (!document.getElementById(STYLE_ID)) {
-    const css = document.createElement('style'); css.id = STYLE_ID;
-    css.textContent = `
-      .ocs-ctr-single {display:inline-flex!important;align-items:center;justify-content:center;vertical-align:middle;margin-left:5px;padding:2px 3px;color:#1680ed!important;cursor:pointer;border:0;background:transparent;font-size:16px;line-height:1}
-      .ocs-ctr-single:hover {color:#0c529b!important;background:#eaf3ff;border-radius:3px}
-      .ocs-ctr-single[disabled] {opacity:.5;cursor:wait}
-      .ocs-ctr-batch {color:#1680ed!important;cursor:pointer}
-      .ocs-ctr-batch[aria-disabled="true"] {opacity:.5;pointer-events:none}
-      #ocs-ctr-progress {position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:2147483600;background:#2b1010;color:#fff;border-radius:6px;box-shadow:0 4px 20px #0005;padding:12px 16px;max-width:90vw;font:13px Arial,sans-serif}
-      #ocs-ctr-progress button {margin-left:12px;background:#ffca00;border:0;border-radius:3px;cursor:pointer;padding:4px 8px}
-    `;
-    (document.head || document.documentElement).appendChild(css);
+  if(window.__OCS_CTR_0758__)return;
+  window.__OCS_CTR_0758__=true;
+  if(!location.pathname.includes('/operational/order_jobs'))return;
+  const DOC_PATH=/\/partner_area\/operational\/environmental_documentations\/[0-9a-f-]{30,}/i;
+  const SETTINGS_KEY='ocs-settings-v0749';
+  const readSettings=()=>{try{return JSON.parse(localStorage.getItem(SETTINGS_KEY)||'{}')}catch(_){return {}}};
+  const enabled=key=>{const p=readSettings();return p.enabled!==false&&p[key]!==false};
+  const absolute=(href,base=location.href)=>new URL(href,base).href;
+  const docLinks=row=>[...row.querySelectorAll('a[href]')].filter(a=>DOC_PATH.test(a.getAttribute('href')||''));
+  const selectedRows=()=>[...document.querySelectorAll('tr')].filter(row=>{
+    const cb=row.querySelector('input[type="checkbox"]');
+    return cb&&cb.checked&&!cb.disabled&&docLinks(row).length;
+  });
+  const style=document.createElement('style');style.id='ocs-ctr-0758-css';
+  style.textContent=`
+    .ocs-ctr-view-single{display:inline-flex!important;align-items:center!important;justify-content:center!important;vertical-align:middle!important;margin-left:4px!important;padding:2px!important;color:#ffbc00!important;background:transparent!important;border:0!important;border-radius:3px!important;cursor:pointer!important}
+    .ocs-ctr-view-single:hover{background:#fff0c0!important;color:#a36a00!important}
+    .ocs-ctr-view-single .material-icons{font-size:16px!important;line-height:1!important}
+    .ocs-ctr-view-batch{color:#1680ed!important;cursor:pointer!important}
+    #ocs-ctr-view-message{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:2147483600;background:#2b1010;color:white;padding:11px 15px;border-radius:7px;box-shadow:0 3px 15px #0005;font:13px Arial,sans-serif;max-width:90vw}
+  `;(document.head||document.documentElement).appendChild(style);
+  function notice(text){
+    let el=document.getElementById('ocs-ctr-view-message');
+    if(!el){el=document.createElement('div');el.id='ocs-ctr-view-message';document.body.appendChild(el)}
+    el.textContent=text;clearTimeout(notice.timer);notice.timer=setTimeout(()=>el.remove(),9000);
   }
-  const sleep = ms => new Promise(r=>setTimeout(r,ms));
-  const absolute = href => new URL(href,location.href).href;
-  const docLinks = row => [...row.querySelectorAll('a[href]')].filter(a=>DOC_PATH.test(a.getAttribute('href')||''));
-  function selectedRows(){
-    return [...document.querySelectorAll('tr')].filter(row=>{
-      const cb = row.querySelector('input[type="checkbox"]');
-      return cb && cb.checked && !cb.disabled && docLinks(row).length;
+  // Usa a opção nativa "Exibir Documentação Externa", não a opção "Imprimir".
+  async function getViewUrl(docHref){
+    const source=absolute(docHref);
+    const response=await fetch(source,{credentials:'same-origin',redirect:'follow'});
+    if(!response.ok)throw new Error('HTTP '+response.status);
+    const page=new DOMParser().parseFromString(await response.text(),'text/html');
+    const link=[...page.querySelectorAll('a[href]')].find(a=>
+      /exibir documenta[çc][ãa]o externa/i.test(
+        (a.getAttribute('title')||'')+' '+(a.textContent||''))
+    );
+    if(!link)throw new Error('Opção Exibir Documentação Externa não encontrada');
+    const url=absolute(link.getAttribute('href'),response.url||source);
+    if(!/^https?:\/\//i.test(url))throw new Error('Endereço de documentação inválido');
+    return url;
+  }
+  function reserveTab(){
+    // Reserva a aba durante o clique do usuário para evitar bloqueio de popup
+    const tab=window.open('about:blank','_blank');
+    if(tab){try{tab.opener=null;tab.document.title='OCS — Abrindo CTR…'}catch(_){}}
+    return tab;
+  }
+  async function viewOne(href,button){
+    if(button)button.disabled=true;
+    const tab=reserveTab();
+    try{
+      const url=await getViewUrl(href);
+      if(tab&&!tab.closed)tab.location.replace(url);
+      else {notice('O navegador bloqueou a aba. Permita pop-ups para exibir a CTR.');}
+    }catch(err){if(tab&&!tab.closed)tab.close();notice('Não foi possível exibir a CTR: '+err.message)}
+    finally{if(button)button.disabled=false}
+  }
+  function cleanDuplicates(){
+    // Remove botões antigos e repetidos, inclusive se o site reconstruir linhas.
+    document.querySelectorAll('.ocs-ctr-single').forEach(el=>el.remove());
+    document.querySelectorAll('.ocs-ctr-batch').forEach(el=>el.remove());
+    const seen=new Set();
+    document.querySelectorAll('.ocs-ctr-view-single').forEach(el=>{
+      const link=el.previousElementSibling;
+      if(!link||!DOC_PATH.test(link.getAttribute('href')||'')||seen.has(link)){el.remove();return}
+      seen.add(link);
     });
   }
-  function toast(message,hold=6500){
-    let box=document.getElementById('ocs-ctr-progress');
-    if(!box){box=document.createElement('div');box.id='ocs-ctr-progress';document.body.appendChild(box);}
-    box.textContent=message;
-    const close=document.createElement('button');close.textContent='Fechar';close.onclick=()=>box.remove();box.appendChild(close);
-    clearTimeout(window.__ocsCTRToastTimer);
-    window.__ocsCTRToastTimer=setTimeout(()=>box.remove(),hold);
-  }
-  async function getPrintUrl(docHref){
-    const response=await fetch(absolute(docHref),{credentials:'same-origin',redirect:'follow'});
-    if(!response.ok) throw new Error('HTTP '+response.status);
-    const html=await response.text();
-    const page=new DOMParser().parseFromString(html,'text/html');
-    const print=[...page.querySelectorAll('a[href]')].find(a=>
-      /imprimir documenta[çc][ãa]o/i.test((a.getAttribute('title')||'')+' '+a.textContent)
-      && /\/operational\/environmental_documentations\//.test(a.getAttribute('href')||''));
-    if(!print) throw new Error('Documento sem opção Imprimir Documentação');
-    return absolute(print.getAttribute('href'));
-  }
-  function openPrint(url){
-    // Usa o mesmo link nativo de impressão do site. O navegador decide se abre ou baixa o arquivo.
-    const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';
-    a.style.display='none';document.body.appendChild(a);a.click();a.remove();
-  }
-  async function downloadOne(docHref,button){
-    if(button) button.disabled=true;
-    try{ const url=await getPrintUrl(docHref);openPrint(url); }
-    catch(e){toast('CTR não disponível: '+e.message);}
-    finally{if(button) button.disabled=false;}
-  }
   function addSingles(){
+    if(!enabled('ctrSingle')){document.querySelectorAll('.ocs-ctr-view-single').forEach(el=>el.remove());return}
     for(const row of document.querySelectorAll('tr')){
       for(const link of docLinks(row)){
-        if(link.dataset.ocsCtr0757==='1') continue;
-        link.dataset.ocsCtr0757='1';
+        if(link.nextElementSibling?.classList.contains('ocs-ctr-view-single'))continue;
         const button=document.createElement('button');button.type='button';
-        button.className='ocs-ctr-single';button.title='Imprimir / baixar CTR deste atendimento';
-        button.setAttribute('aria-label','Baixar CTR');
-        button.innerHTML='<i class="material-icons" style="font-size:17px">file_download</i>';
-        button.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();downloadOne(link.href,button);});
+        button.className='ocs-ctr-view-single';
+        button.title='Exibir CTR deste atendimento';
+        button.setAttribute('aria-label','Exibir CTR');
+        button.innerHTML='<i class="material-icons" aria-hidden="true">open_in_new</i>';
+        button.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();viewOne(link.href,button)});
         link.insertAdjacentElement('afterend',button);
       }
     }
   }
   function addBatch(){
-    const anchors=[...document.querySelectorAll('a,button')];
-    const mtr=anchors.find(el=>/gerar mtr/i.test(el.textContent||'') && el.closest('.dropdown-menu'));
-    if(!mtr) return;
-    const menu=mtr.closest('.dropdown-menu');
-    let item=menu.querySelector('.ocs-ctr-batch');
+    const existing=document.querySelector('.ocs-ctr-view-batch');
+    if(!enabled('ctrBatch')){if(existing)existing.remove();return}
     const count=selectedRows().length;
-    if(!count){if(item)item.remove();return;}
-    if(item)return;
-    item=document.createElement('a');item.href='#';item.className='dropdown-item ocs-ctr-batch';
-    item.innerHTML='<i class="material-icons" style="font-size:15px;vertical-align:middle;margin-right:5px">file_download</i>Baixar CTRs selecionados';
+    if(!count){if(existing)existing.remove();return}
+    if(existing && existing.dataset.count===String(count))return;
+    if(existing)existing.remove();
+    const mtr=[...document.querySelectorAll('a,button')].find(el=>
+      /gerar mtr/i.test(el.textContent||'')&&el.closest('.dropdown-menu'));
+    if(!mtr)return;
+    const item=document.createElement('a');item.href='#';
+    item.className='dropdown-item ocs-ctr-view-batch';item.dataset.count=String(count);
+    item.innerHTML='<i class="material-icons" style="font-size:15px;vertical-align:middle;margin-right:5px">open_in_new</i>Exibir CTRs selecionados ('+count+')';
     item.addEventListener('click',async e=>{
       e.preventDefault();e.stopPropagation();
-      if(item.dataset.busy==='1')return;
       const rows=selectedRows();
-      if(!rows.length){toast('Selecione pelo menos um atendimento.');return;}
-      if(rows.length>10&&!confirm('Abrir '+rows.length+' documentos? O Chrome poderá bloquear várias abas.'))return;
-      item.dataset.busy='1';item.setAttribute('aria-disabled','true');
-      let ok=0;const failed=[];
-      for(let i=0;i<rows.length;i++){
-        const link=docLinks(rows[i])[0];
-        if(!link)continue;
-        try{const url=await getPrintUrl(link.href);openPrint(url);ok++;}
-        catch(err){failed.push((rows[i].innerText||'Atendimento').trim().slice(0,65));}
-        if(i<rows.length-1)await sleep(400);
+      if(!rows.length){notice('Selecione um ou mais atendimentos.');return}
+      if(rows.length>8&&!confirm('Abrir '+rows.length+' CTRs em novas abas?'))return;
+      // Abre abas imediatamente enquanto há ativação do usuário.
+      const tasks=rows.map(row=>({href:docLinks(row)[0]?.href,tab:reserveTab()}));
+      let success=0,errors=0,blocked=0;
+      for(const task of tasks){
+        if(!task.href){errors++;if(task.tab)task.tab.close();continue}
+        try{
+          const url=await getViewUrl(task.href);
+          if(task.tab&&!task.tab.closed){task.tab.location.replace(url);success++}
+          else blocked++;
+        }catch(err){errors++;if(task.tab&&!task.tab.closed)task.tab.close()}
       }
-      item.dataset.busy='0';item.removeAttribute('aria-disabled');
-      toast('CTR: '+ok+' documento(s) enviado(s) ao navegador. '+failed.length+' sem impressão disponível.'+(failed.length?' Verifique os atendimentos sem CTR.':''),12000);
+      notice('CTRs: '+success+' aberta(s), '+errors+' indisponível(is)'+(blocked?', '+blocked+' aba(s) bloqueada(s)':'')+'.');
     });
     const li=mtr.closest('li');
-    if(li&&li.parentElement===menu)li.insertAdjacentElement('afterend',item);
+    if(li&&li.parentElement)li.insertAdjacentElement('afterend',item);
     else mtr.insertAdjacentElement('afterend',item);
   }
-  let pending=false;
-  function refresh(){if(pending)return;pending=true;setTimeout(()=>{pending=false;try{addSingles();addBatch();}catch(e){console.warn('[OCS CTR]',e);}},180);}
+  let scheduled=false;
+  function refresh(){
+    if(scheduled)return;scheduled=true;
+    setTimeout(()=>{scheduled=false;try{cleanDuplicates();addSingles();addBatch()}catch(e){console.warn('[OCS CTR]',e)}},240);
+  }
   document.addEventListener('change',e=>{if(e.target.matches('input[type="checkbox"]'))refresh()},true);
   document.addEventListener('click',refresh,true);
-  const obs=new MutationObserver(refresh);
-  obs.observe(document.body||document.documentElement,{subtree:true,childList:true});
+  document.addEventListener('ocs:settings-changed',refresh);
+  new MutationObserver(refresh).observe(document.body||document.documentElement,{childList:true,subtree:true});
   refresh();
 })();
