@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OCS | Caçambas Online
 // @namespace    OCS-CacambasOnline
-// @version      0.7.56
+// @version      0.7.57
 // @author       Tarcisio
 // @description  Gestão financeira, anexos, indicadores, filtros, juros, duplicatas e notificações inteligentes de pagamentos e atendimentos.
 // @match        https://app.cacambasonline.com/partner_area/*
@@ -18,13 +18,14 @@
  * Script independente para melhorias operacionais e financeiras no Caçambas Online.
  * Não é uma ferramenta oficial da plataforma.
  *
+ * v0.7.57 — Download individual e múltiplo de CTR via documentação ambiental.
  * v0.7.56 — Ícone Ferramentas (chave inglesa) amarelo, robusto e integrado à barra lateral.
  * v0.7.55 — Ícone de configurações nativo, maior e mais robusto.
  * v0.7.54 — Correção de desaparecimento da engrenagem após atualização dinâmica da barra lateral.
  * v0.7.50 — Ícone amarelo de configurações integrado à barra lateral marrom.
  * v0.7.49 — Painel Geral / Financeiro / Atualizações, preferências persistentes.
  * HISTÓRICO DE ALTERAÇÕES
- * v0.7.56 — Identidade e descrição do script atualizadas no Tampermonkey.
+ * v0.7.57 — Identidade e descrição do script atualizadas no Tampermonkey.
  * v0.7.46 — Consulta da razão social para identificação do cliente nos alertas.
  * v0.7.45 — Visual harmonizado e maior legibilidade do nome do cliente.
  * v0.7.44 — Botão para fechar todas as notificações abaixo dos quadradinhos.
@@ -39,7 +40,7 @@
 (function () {
     'use strict';
 
-    const VERSION = '0.7.56';
+    const VERSION = '0.7.57';
     const PREFIX = 'ocs0739';
 
     if (window.__OCS_0739__) return;
@@ -3695,4 +3696,121 @@
     );
 
 
+})();
+
+
+// OCS 0.7.57 — Acesso rápido aos CTRs, sem alterar as funções existentes.
+(function ocsCTRDownloads(){
+  'use strict';
+  if (window.__OCS_CTR_0757__) return;
+  window.__OCS_CTR_0757__ = true;
+  if (!location.pathname.includes('/operational/order_jobs')) return;
+  const DOC_PATH = /\/partner_area\/operational\/environmental_documentations\/[0-9a-f-]{30,}/i;
+  const STYLE_ID = 'ocs-ctr-0757-style';
+  if (!document.getElementById(STYLE_ID)) {
+    const css = document.createElement('style'); css.id = STYLE_ID;
+    css.textContent = `
+      .ocs-ctr-single {display:inline-flex!important;align-items:center;justify-content:center;vertical-align:middle;margin-left:5px;padding:2px 3px;color:#1680ed!important;cursor:pointer;border:0;background:transparent;font-size:16px;line-height:1}
+      .ocs-ctr-single:hover {color:#0c529b!important;background:#eaf3ff;border-radius:3px}
+      .ocs-ctr-single[disabled] {opacity:.5;cursor:wait}
+      .ocs-ctr-batch {color:#1680ed!important;cursor:pointer}
+      .ocs-ctr-batch[aria-disabled="true"] {opacity:.5;pointer-events:none}
+      #ocs-ctr-progress {position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:2147483600;background:#2b1010;color:#fff;border-radius:6px;box-shadow:0 4px 20px #0005;padding:12px 16px;max-width:90vw;font:13px Arial,sans-serif}
+      #ocs-ctr-progress button {margin-left:12px;background:#ffca00;border:0;border-radius:3px;cursor:pointer;padding:4px 8px}
+    `;
+    (document.head || document.documentElement).appendChild(css);
+  }
+  const sleep = ms => new Promise(r=>setTimeout(r,ms));
+  const absolute = href => new URL(href,location.href).href;
+  const docLinks = row => [...row.querySelectorAll('a[href]')].filter(a=>DOC_PATH.test(a.getAttribute('href')||''));
+  function selectedRows(){
+    return [...document.querySelectorAll('tr')].filter(row=>{
+      const cb = row.querySelector('input[type="checkbox"]');
+      return cb && cb.checked && !cb.disabled && docLinks(row).length;
+    });
+  }
+  function toast(message,hold=6500){
+    let box=document.getElementById('ocs-ctr-progress');
+    if(!box){box=document.createElement('div');box.id='ocs-ctr-progress';document.body.appendChild(box);}
+    box.textContent=message;
+    const close=document.createElement('button');close.textContent='Fechar';close.onclick=()=>box.remove();box.appendChild(close);
+    clearTimeout(window.__ocsCTRToastTimer);
+    window.__ocsCTRToastTimer=setTimeout(()=>box.remove(),hold);
+  }
+  async function getPrintUrl(docHref){
+    const response=await fetch(absolute(docHref),{credentials:'same-origin',redirect:'follow'});
+    if(!response.ok) throw new Error('HTTP '+response.status);
+    const html=await response.text();
+    const page=new DOMParser().parseFromString(html,'text/html');
+    const print=[...page.querySelectorAll('a[href]')].find(a=>
+      /imprimir documenta[çc][ãa]o/i.test((a.getAttribute('title')||'')+' '+a.textContent)
+      && /\/operational\/environmental_documentations\//.test(a.getAttribute('href')||''));
+    if(!print) throw new Error('Documento sem opção Imprimir Documentação');
+    return absolute(print.getAttribute('href'));
+  }
+  function openPrint(url){
+    // Usa o mesmo link nativo de impressão do site. O navegador decide se abre ou baixa o arquivo.
+    const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';
+    a.style.display='none';document.body.appendChild(a);a.click();a.remove();
+  }
+  async function downloadOne(docHref,button){
+    if(button) button.disabled=true;
+    try{ const url=await getPrintUrl(docHref);openPrint(url); }
+    catch(e){toast('CTR não disponível: '+e.message);}
+    finally{if(button) button.disabled=false;}
+  }
+  function addSingles(){
+    for(const row of document.querySelectorAll('tr')){
+      for(const link of docLinks(row)){
+        if(link.dataset.ocsCtr0757==='1') continue;
+        link.dataset.ocsCtr0757='1';
+        const button=document.createElement('button');button.type='button';
+        button.className='ocs-ctr-single';button.title='Imprimir / baixar CTR deste atendimento';
+        button.setAttribute('aria-label','Baixar CTR');
+        button.innerHTML='<i class="material-icons" style="font-size:17px">file_download</i>';
+        button.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();downloadOne(link.href,button);});
+        link.insertAdjacentElement('afterend',button);
+      }
+    }
+  }
+  function addBatch(){
+    const anchors=[...document.querySelectorAll('a,button')];
+    const mtr=anchors.find(el=>/gerar mtr/i.test(el.textContent||'') && el.closest('.dropdown-menu'));
+    if(!mtr) return;
+    const menu=mtr.closest('.dropdown-menu');
+    let item=menu.querySelector('.ocs-ctr-batch');
+    const count=selectedRows().length;
+    if(!count){if(item)item.remove();return;}
+    if(item)return;
+    item=document.createElement('a');item.href='#';item.className='dropdown-item ocs-ctr-batch';
+    item.innerHTML='<i class="material-icons" style="font-size:15px;vertical-align:middle;margin-right:5px">file_download</i>Baixar CTRs selecionados';
+    item.addEventListener('click',async e=>{
+      e.preventDefault();e.stopPropagation();
+      if(item.dataset.busy==='1')return;
+      const rows=selectedRows();
+      if(!rows.length){toast('Selecione pelo menos um atendimento.');return;}
+      if(rows.length>10&&!confirm('Abrir '+rows.length+' documentos? O Chrome poderá bloquear várias abas.'))return;
+      item.dataset.busy='1';item.setAttribute('aria-disabled','true');
+      let ok=0;const failed=[];
+      for(let i=0;i<rows.length;i++){
+        const link=docLinks(rows[i])[0];
+        if(!link)continue;
+        try{const url=await getPrintUrl(link.href);openPrint(url);ok++;}
+        catch(err){failed.push((rows[i].innerText||'Atendimento').trim().slice(0,65));}
+        if(i<rows.length-1)await sleep(400);
+      }
+      item.dataset.busy='0';item.removeAttribute('aria-disabled');
+      toast('CTR: '+ok+' documento(s) enviado(s) ao navegador. '+failed.length+' sem impressão disponível.'+(failed.length?' Verifique os atendimentos sem CTR.':''),12000);
+    });
+    const li=mtr.closest('li');
+    if(li&&li.parentElement===menu)li.insertAdjacentElement('afterend',item);
+    else mtr.insertAdjacentElement('afterend',item);
+  }
+  let pending=false;
+  function refresh(){if(pending)return;pending=true;setTimeout(()=>{pending=false;try{addSingles();addBatch();}catch(e){console.warn('[OCS CTR]',e);}},180);}
+  document.addEventListener('change',e=>{if(e.target.matches('input[type="checkbox"]'))refresh()},true);
+  document.addEventListener('click',refresh,true);
+  const obs=new MutationObserver(refresh);
+  obs.observe(document.body||document.documentElement,{subtree:true,childList:true});
+  refresh();
 })();

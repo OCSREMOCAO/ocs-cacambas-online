@@ -21,3 +21,8 @@ A aba Atualizações consulta a versão publicada neste repositório e oferece u
 Substitua `OCS.user.js` na branch `main` e aumente o valor de `@version`. Não altere o caminho do arquivo.
 
 **Projeto independente, não oficial da plataforma.**
+
+
+### CTRs (v0.7.57)
+
+Na lista de Atendimentos, o ícone azul de download ao lado da Documentação Ambiental usa a ação nativa **Imprimir Documentação**. Ao selecionar atendimentos, o menu **AÇÕES** oferece **Baixar CTRs selecionados**. O navegador pode abrir os documentos em novas abas e bloquear múltiplos downloads; habilite pop-ups quando necessário.
