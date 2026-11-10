@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OCS | Caçambas Online
 // @namespace    OCS-CacambasOnline
-// @version      0.7.59
+// @version      0.7.60
 // @author       Tarcisio
 // @description  Gestão financeira, anexos, indicadores, filtros, juros, duplicatas e notificações inteligentes de pagamentos e atendimentos.
 // @match        https://app.cacambasonline.com/partner_area/*
@@ -18,7 +18,7 @@
  * Script independente para melhorias operacionais e financeiras no Caçambas Online.
  * Não é uma ferramenta oficial da plataforma.
  *
- * v0.7.59 — Atalhos distintos: exibir CTR e baixar comprovante do pedido.
+ * v0.7.60 — Atalhos distintos: exibir CTR e baixar comprovante do pedido.
  * v0.7.58 — Exibição individual e múltipla de CTR.
  * v0.7.56 — Ícone Ferramentas (chave inglesa) amarelo, robusto e integrado à barra lateral.
  * v0.7.55 — Ícone de configurações nativo, maior e mais robusto.
@@ -26,7 +26,7 @@
  * v0.7.50 — Ícone amarelo de configurações integrado à barra lateral marrom.
  * v0.7.49 — Painel Geral / Financeiro / Atualizações, preferências persistentes.
  * HISTÓRICO DE ALTERAÇÕES
- * v0.7.59 — Identidade e descrição do script atualizadas no Tampermonkey.
+ * v0.7.60 — Identidade e descrição do script atualizadas no Tampermonkey.
  * v0.7.46 — Consulta da razão social para identificação do cliente nos alertas.
  * v0.7.45 — Visual harmonizado e maior legibilidade do nome do cliente.
  * v0.7.44 — Botão para fechar todas as notificações abaixo dos quadradinhos.
@@ -41,7 +41,7 @@
 (function () {
     'use strict';
 
-    const VERSION = '0.7.59';
+    const VERSION = '0.7.60';
     const PREFIX = 'ocs0739';
 
     if (window.__OCS_0739__) return;
@@ -3719,11 +3719,11 @@
 
 
 
-// OCS 0.7.59 — Exibir CTR e baixar comprovante do pedido.
+// OCS 0.7.60 — Exibir CTR e baixar comprovante do pedido.
 (function ocsCTRViewer(){
   'use strict';
-  if(window.__OCS_CTR_0759__)return;
-  window.__OCS_CTR_0759__=true;
+  if(window.__OCS_CTR_0760__)return;
+  window.__OCS_CTR_0760__=true;
   if(!location.pathname.includes('/operational/order_jobs'))return;
   const ORDER_PATH=/\/partner_area\/operational\/orders\/[0-9a-f-]{30,}/i;
   const DOC_PATH=/\/partner_area\/operational\/environmental_documentations\/[0-9a-f-]{30,}/i;
@@ -3732,12 +3732,13 @@
   const enabled=key=>{const p=readSettings();return p.enabled!==false&&p[key]!==false};
   const absolute=(href,base=location.href)=>new URL(href,base).href;
   const orderLinks=row=>[...row.querySelectorAll('a[href]')].filter(a=>ORDER_PATH.test(a.getAttribute('href')||''));
+  const jobLinks=row=>[...row.querySelectorAll('a[href]')].filter(a=>/\/partner_area\/operational\/order_jobs\/[0-9a-f-]{30,}/i.test(a.getAttribute('href')||''));
   const docLinks=row=>[...row.querySelectorAll('a[href]')].filter(a=>DOC_PATH.test(a.getAttribute('href')||''));
   const selectedRows=()=>[...document.querySelectorAll('tr')].filter(row=>{
     const cb=row.querySelector('input[type="checkbox"]');
     return cb&&cb.checked&&!cb.disabled&&docLinks(row).length;
   });
-  const style=document.createElement('style');style.id='ocs-ctr-0759-css';
+  const style=document.createElement('style');style.id='ocs-ctr-0760-css';
   style.textContent=`
     .ocs-ctr-view-single{display:inline-flex!important;align-items:center!important;justify-content:center!important;vertical-align:middle!important;margin-left:4px!important;padding:2px!important;color:#ffbc00!important;background:transparent!important;border:0!important;border-radius:3px!important;cursor:pointer!important}
     .ocs-order-pdf{display:inline-flex!important;align-items:center!important;justify-content:center!important;vertical-align:middle!important;margin-left:4px!important;padding:2px!important;color:#1675d1!important;background:transparent!important;border:0!important;border-radius:3px!important;cursor:pointer!important}
@@ -3784,27 +3785,40 @@
     }catch(err){if(tab&&!tab.closed)tab.close();notice('Não foi possível exibir a CTR: '+err.message)}
     finally{if(button)button.disabled=false}
   }
-  async function findOrderPdf(orderHref){
-    const source=absolute(orderHref);
-    const response=await fetch(source,{credentials:'same-origin',redirect:'follow'});
-    if(!response.ok)throw new Error('Pedido indisponível (HTTP '+response.status+')');
-    const page=new DOMParser().parseFromString(await response.text(),'text/html');
-    // Inspecionar: item nativo de Comprovante tem data-remote-download e link de template.
-    const links=[...page.querySelectorAll('a[href]')];
-    const candidate=links.find(a=>a.hasAttribute('data-remote-download')&&
-      /comprovante|download/i.test((a.closest('li')?.textContent||'')+' '+(a.getAttribute('title')||'')))
-      ||links.find(a=>a.hasAttribute('data-remote-download')&&/\/templates\//i.test(a.getAttribute('href')||''))
-      ||links.find(a=>/comprovante/i.test(a.textContent||'')&&/\/templates\//i.test(a.getAttribute('href')||''));
-    if(!candidate)throw new Error('Comando nativo de comprovante não encontrado neste pedido');
-    const url=absolute(candidate.getAttribute('href'),response.url||source);
-    if(new URL(url).origin!==location.origin)throw new Error('Endereço de download externo não permitido');
-    return url;
+  async function findOrderPdf(orderHref,jobHref,docHref){
+    // A listagem de atendimentos normalmente NÃO contém o link do pedido.
+    // Descobre o pedido a partir da página do atendimento ou da documentação.
+    const candidates=[orderHref,jobHref,docHref].filter(Boolean);
+    let foundOrder=orderHref||'';
+    for(const href of candidates){
+      const source=absolute(href);
+      const response=await fetch(source,{credentials:'same-origin',redirect:'follow'});
+      if(!response.ok)continue;
+      const page=new DOMParser().parseFromString(await response.text(),'text/html');
+      if(!foundOrder){
+        const orderLink=[...page.querySelectorAll('a[href]')].find(a=>ORDER_PATH.test(a.getAttribute('href')||''));
+        if(orderLink)foundOrder=absolute(orderLink.getAttribute('href'),response.url||source);
+      }
+      // Só aceita o comprovante na página de pedido, para não baixar outro documento.
+      if(!ORDER_PATH.test(response.url||source))continue;
+      const links=[...page.querySelectorAll('a[href]')];
+      const candidate=links.find(a=>a.hasAttribute('data-remote-download')&&
+        /comprovante|download/i.test((a.closest('li')?.textContent||'')+' '+(a.getAttribute('title')||'')))
+        ||links.find(a=>a.hasAttribute('data-remote-download')&&/\/templates\//i.test(a.getAttribute('href')||''));
+      if(candidate){
+        const url=absolute(candidate.getAttribute('href'),response.url||source);
+        if(new URL(url).origin!==location.origin)throw new Error('Endereço de download externo não permitido');
+        return url;
+      }
+    }
+    if(foundOrder&&!candidates.includes(foundOrder))return findOrderPdf(foundOrder);
+    throw new Error('Comprovante do pedido não encontrado; verifique se o atendimento está vinculado a um pedido');
   }
-  async function downloadOrder(orderHref,button){
+  async function downloadOrder(orderHref,jobHref,docHref,button){
     if(button)button.disabled=true;
     // Usa o endpoint nativo do comprovante do pedido, sem usar Imprimir CTR.
     try{
-      const url=await findOrderPdf(orderHref);
+      const url=await findOrderPdf(orderHref,jobHref,docHref);
       const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener';
       a.style.display='none';document.body.appendChild(a);a.click();a.remove();
     }catch(err){notice('Não foi possível baixar o pedido: '+err.message)}
@@ -3814,7 +3828,7 @@
     // Remove botões antigos e repetidos, inclusive se o site reconstruir linhas.
     document.querySelectorAll('.ocs-ctr-single').forEach(el=>el.remove());
     document.querySelectorAll('.ocs-ctr-batch').forEach(el=>el.remove());
-    document.querySelectorAll('.ocs-order-pdf').forEach(el=>{if(!el.previousElementSibling||!DOC_PATH.test(el.previousElementSibling.getAttribute('href')||''))el.remove()});
+    document.querySelectorAll('.ocs-order-pdf').forEach(el=>{if(!el.closest('tr')||!docLinks(el.closest('tr')).length)el.remove()});
     const seen=new Set();
     document.querySelectorAll('.ocs-ctr-view-single').forEach(el=>{
       const link=[...el.parentElement.querySelectorAll('a[href]')].find(a=>DOC_PATH.test(a.getAttribute('href')||''));
@@ -3840,7 +3854,10 @@
   function addOrderButtons(){
     if(!enabled('orderPdf')){document.querySelectorAll('.ocs-order-pdf').forEach(el=>el.remove());return}
     for(const row of document.querySelectorAll('tr')){
-      const order=orderLinks(row)[0];if(!order)continue;
+      const order=orderLinks(row)[0];
+      const job=jobLinks(row)[0];
+      const doc=docLinks(row)[0];
+      if(!order&&!job&&!doc)continue;
       for(const link of docLinks(row)){
         // Dois atalhos OCS: um exibe a CTR, outro baixa o comprovante do pedido.
         if(link.nextElementSibling?.classList.contains('ocs-order-pdf')||
@@ -3849,7 +3866,7 @@
         button.className='ocs-order-pdf';button.title='Baixar comprovante do pedido (PDF)';
         button.setAttribute('aria-label','Baixar comprovante do pedido');
         button.innerHTML='<i class="material-icons" aria-hidden="true">file_download</i>';
-        button.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();downloadOrder(order.href,button)});
+        button.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();downloadOrder(order?.href,job?.href,doc?.href,button)});
         link.insertAdjacentElement('afterend',button);
       }
     }
