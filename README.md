@@ -1,5 +1,22 @@
 # OCS | Caçambas Online
 
-Versão 0.7.60: corrige a ausência do botão de baixar comprovante do pedido na listagem de atendimentos. O botão aparece mesmo quando a linha não contém o link direto do pedido; ao clicar, o script tenta localizar o pedido vinculado e seu comando nativo de download.
+Automação de funcionalidades financeiras, notificações, documentação ambiental e produtividade para o Caçambas Online.
 
-Instale pelo Tampermonkey usando `OCS.user.js`.
+### Instalação
+
+[![INSTALAR OCS](https://img.shields.io/badge/INSTALAR%20OCS-28a745?style=for-the-badge&logo=tampermonkey&logoColor=white)](https://github.com/OCSREMOCAO/ocs-cacambas-online/raw/refs/heads/main/OCS.user.js)
+
+**Versão:** 0.7.60
+
+**Requisito:** extensão Tampermonkey instalada no navegador.
+
+Clique no botão acima para abrir o instalador do OCS.
+
+### Funcionalidades
+
+- Gestão financeira e indicadores.
+- Notificações de pagamentos e atendimentos.
+- Atalhos para documentação ambiental e pedidos.
+- Download de comprovantes de pedidos.
+- Configurações personalizadas.
+- Verificação de atualizações pelo GitHub.
