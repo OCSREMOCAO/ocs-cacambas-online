@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OCS | Caçambas Online
 // @namespace    OCS-CacambasOnline
-// @version      0.7.62
+// @version      0.7.63
 // @author       Tarcisio
 // @description  Gestão financeira, anexos, indicadores, filtros, juros, duplicatas e notificações inteligentes de pagamentos e atendimentos.
 // @match        https://app.cacambasonline.com/partner_area/*
@@ -41,7 +41,7 @@
 (function () {
     'use strict';
 
-    const VERSION = '0.7.62';
+    const VERSION = '0.7.63';
     const PREFIX = 'ocs0739';
 
     if (window.__OCS_0739__) return;
@@ -3718,11 +3718,11 @@
 
 
 
-// OCS 0.7.62 — Exibir CTR e baixar comprovante do pedido (busca segura).
+// OCS 0.7.63 — CTRs selecionadas disponíveis também em Concluídos.
 (function ocsCTRViewer(){
   'use strict';
-  if(window.__OCS_CTR_0762__)return;
-  window.__OCS_CTR_0762__=true;
+  if(window.__OCS_CTR_0763__)return;
+  window.__OCS_CTR_0763__=true;
   if(!location.pathname.includes('/operational/order_jobs'))return;
   const DOC_PATH=/\/partner_area\/operational\/environmental_documentations\/[0-9a-f-]{30,}/i;
   const SETTINGS_KEY='ocs-settings-v0749';
@@ -3732,7 +3732,7 @@
   const docLinks=row=>[...row.querySelectorAll('a[href]')].filter(a=>DOC_PATH.test(a.getAttribute('href')||''));
   const selectedRows=()=>[...document.querySelectorAll('tr')].filter(row=>{
     const cb=row.querySelector('input[type="checkbox"]');
-    return cb&&cb.checked&&!cb.disabled&&docLinks(row).length;
+    return cb&&cb.checked&&!cb.disabled&&row.querySelector('td');
   });
   const style=document.createElement('style');style.id='ocs-ctr-0760-css';
   style.textContent=`
@@ -3806,40 +3806,75 @@
       }
     }
   }
+  function actionsMenu(){
+    // Em Concluídos o site pode ocultar Gerar MTR, mas mantém AÇÕES.
+    const menus=[...document.querySelectorAll('.dropdown-menu')];
+    const mtr=menus.map(menu=>[...menu.querySelectorAll('a,button')].find(el=>/gerar mtr/i.test(el.textContent||''))).find(Boolean);
+    if(mtr)return {menu:mtr.closest('.dropdown-menu'),anchor:mtr.closest('li')||mtr};
+    const toggles=[...document.querySelectorAll('button,a')].filter(el=>
+      /\ba[çc][õo]es\b/i.test((el.textContent||'').replace(/\s+/g,' ')) &&
+      !el.closest('.dropdown-menu') && !el.closest('tr'));
+    for(const toggle of toggles){
+      const dropdown=toggle.closest('.dropdown');
+      const menu=dropdown?.querySelector('.dropdown-menu') ||
+        (toggle.getAttribute('aria-controls') && document.getElementById(toggle.getAttribute('aria-controls'))) ||
+        (toggle.getAttribute('data-target') && document.querySelector(toggle.getAttribute('data-target')));
+      if(menu)return {menu,anchor:null};
+    }
+    return null;
+  }
   function addBatch(){
-    const existing=document.querySelector('.ocs-ctr-view-batch');
-    if(!enabled('ctrBatch')){if(existing)existing.remove();return}
-    const count=selectedRows().length;
-    if(!count){if(existing)existing.remove();return}
-    if(existing && existing.dataset.count===String(count))return;
-    if(existing)existing.remove();
-    const mtr=[...document.querySelectorAll('a,button')].find(el=>
-      /gerar mtr/i.test(el.textContent||'')&&el.closest('.dropdown-menu'));
-    if(!mtr)return;
+    const existing=[...document.querySelectorAll('.ocs-ctr-view-batch')];
+    if(!enabled('ctrBatch')){existing.forEach(el=>el.remove());return}
+    const rows=selectedRows();
+    const target=actionsMenu();
+    if(!target){existing.forEach(el=>el.remove());return}
+    const {menu,anchor}=target;
+    // A opção permanece no menu, inclusive antes de selecionar linhas.
+    const current=existing.find(el=>menu.contains(el));
+    existing.filter(el=>el!==current).forEach(el=>el.remove());
+    if(current){
+      current.dataset.count=String(rows.length);
+      current.querySelector('.ocs-ctr-batch-label').textContent='Exibir CTRs selecionadas ('+rows.length+')';
+      current.classList.toggle('disabled',!rows.length);
+      current.setAttribute('aria-disabled',String(!rows.length));
+      return;
+    }
     const item=document.createElement('a');item.href='#';
-    item.className='dropdown-item ocs-ctr-view-batch';item.dataset.count=String(count);
-    item.innerHTML='<i class="material-icons" style="font-size:15px;vertical-align:middle;margin-right:5px">open_in_new</i>Exibir CTRs selecionados ('+count+')';
+    item.className='dropdown-item ocs-ctr-view-batch';item.dataset.count=String(rows.length);
+    item.innerHTML='<i class="material-icons" style="font-size:15px;vertical-align:middle;margin-right:5px">open_in_new</i><span class="ocs-ctr-batch-label"></span>';
+    item.querySelector('.ocs-ctr-batch-label').textContent='Exibir CTRs selecionadas ('+rows.length+')';
+    item.classList.toggle('disabled',!rows.length);
+    item.setAttribute('aria-disabled',String(!rows.length));
     item.addEventListener('click',async e=>{
       e.preventDefault();e.stopPropagation();
-      const rows=selectedRows();
-      if(!rows.length){notice('Selecione um ou mais atendimentos.');return}
-      if(rows.length>8&&!confirm('Abrir '+rows.length+' CTRs em novas abas?'))return;
-      // Abre abas imediatamente enquanto há ativação do usuário.
-      const tasks=rows.map(row=>({href:docLinks(row)[0]?.href,tab:reserveTab()}));
-      let success=0,errors=0,blocked=0;
+      const selected=selectedRows();
+      if(!selected.length){notice('Selecione um ou mais atendimentos.');return}
+      if(selected.length>8&&!confirm('Abrir '+selected.length+' CTRs em novas abas?'))return;
+      const tasks=selected.map(row=>({href:docLinks(row)[0]?.href,tab:null}));
+      // Abas reservadas no clique, antes de operações assíncronas.
+      for(const task of tasks)if(task.href)task.tab=reserveTab();
+      let success=0,errors=0,blocked=0,withoutDoc=0;
       for(const task of tasks){
-        if(!task.href){errors++;if(task.tab)task.tab.close();continue}
+        if(!task.href){withoutDoc++;continue}
         try{
           const url=await getViewUrl(task.href);
           if(task.tab&&!task.tab.closed){task.tab.location.replace(url);success++}
           else blocked++;
         }catch(err){errors++;if(task.tab&&!task.tab.closed)task.tab.close()}
       }
-      notice('CTRs: '+success+' aberta(s), '+errors+' indisponível(is)'+(blocked?', '+blocked+' aba(s) bloqueada(s)':'')+'.');
+      notice('CTRs: '+success+' aberta(s), '+errors+' indisponível(is)'+(withoutDoc?', '+withoutDoc+' sem link de CTR':'')+(blocked?', '+blocked+' aba(s) bloqueada(s)':'')+'.');
     });
-    const li=mtr.closest('li');
-    if(li&&li.parentElement)li.insertAdjacentElement('afterend',item);
-    else mtr.insertAdjacentElement('afterend',item);
+    if(anchor){
+      // Não inserir <a> diretamente como irmão de <li> em listas.
+      if(anchor.tagName==='LI'){
+        const li=document.createElement('li');li.appendChild(item);anchor.insertAdjacentElement('afterend',li);
+      }else anchor.insertAdjacentElement('afterend',item);
+    }else{
+      const isList=/^(UL|OL)$/.test(menu.tagName);
+      if(isList){const li=document.createElement('li');li.appendChild(item);menu.appendChild(li)}
+      else menu.appendChild(item);
+    }
   }
   let scheduled=false;
   function refresh(){

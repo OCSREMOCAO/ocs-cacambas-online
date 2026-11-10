@@ -1,20 +1,10 @@
-# OCS | Caçambas Online
+# OCS | Caçambas Online — 0.7.63
 
-Userscript independente para Tampermonkey, com melhorias operacionais e financeiras no Caçambas Online.
+Correção: a opção **Exibir CTRs selecionadas** é adicionada ao menu **AÇÕES** também na aba **Concluídos**, mesmo quando a opção nativa **Gerar MTR** não existe. A seleção é contada independentemente da presença de link CTR; linhas sem documentação são informadas no resultado.
 
-**Versão atual: 0.7.62**
-
-[**Instalar ou atualizar OCS no Tampermonkey**](https://raw.githubusercontent.com/OCSREMOCAO/ocs-cacambas-online/main/OCS.user.js)
-
-## Atualização 0.7.62
-
-- Removido o botão **Baixar pedido** e a configuração correspondente.
-- Mantido o botão **Exibir CTR** em cada atendimento.
-- Mantida a opção **Exibir CTRs selecionados** no menu AÇÕES.
-- Preservados os recursos financeiros, alertas, configurações e verificação de atualizações.
+Mantidas as funções financeiras, notificações e CTR individual. O botão de baixar pedido continua removido.
 
 ## Publicação no GitHub
+Extraia o ZIP e substitua `OCS.user.js` e `README.md` na raiz do repositório, fazendo commit na branch `main`.
 
-Substitua `OCS.user.js` e `README.md` na raiz da branch `main` pelos arquivos deste ZIP e confirme em **Commit changes**.
-
-> Script independente, não oficial da plataforma.
+Validação: sintaxe JavaScript. Funcionamento em produção depende de teste no site.
