@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OCS | Caçambas Online
 // @namespace    OCS-CacambasOnline
-// @version      0.7.64
+// @version      0.7.65
 // @author       Tarcisio
 // @description  Gestão financeira, anexos, indicadores, filtros, juros, duplicatas e notificações inteligentes de pagamentos e atendimentos.
 // @match        https://app.cacambasonline.com/partner_area/*
@@ -18,6 +18,7 @@
  * Script independente para melhorias operacionais e financeiras no Caçambas Online.
  * Não é uma ferramenta oficial da plataforma.
  *
+ * v0.7.65 — Sincronizada versão exibida e verificação de atualizações.
  * v0.7.62 — Corrigida busca do comprovante do pedido sem recursão infinita.
  * v0.7.58 — Exibição individual e múltipla de CTR.
  * v0.7.56 — Ícone Ferramentas (chave inglesa) amarelo, robusto e integrado à barra lateral.
@@ -41,7 +42,8 @@
 (function () {
     'use strict';
 
-    const VERSION = '0.7.63';
+    // Prefere a versão informada pelo gerenciador, com fallback alinhado ao @version.
+    const VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '0.7.65';
     const PREFIX = 'ocs0739';
 
     if (window.__OCS_0739__) return;
