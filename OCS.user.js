@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OCS | Caçambas Online
 // @namespace    OCS-CacambasOnline
-// @version      0.7.66
+// @version      0.7.67
 // @author       Tarcisio
 // @description  Gestão financeira, anexos, indicadores, filtros, juros, duplicatas e notificações inteligentes de pagamentos e atendimentos.
 // @match        https://app.cacambasonline.com/partner_area/*
@@ -18,6 +18,7 @@
  * Script independente para melhorias operacionais e financeiras no Caçambas Online.
  * Não é uma ferramenta oficial da plataforma.
  *
+ * v0.7.67 — Intervalo entre lotes de CTR configurável de 1 a 30 segundos (padrão 20).
  * v0.7.66 — CTRs em lotes de 5, intervalos de 10 segundos e progresso.
  * v0.7.65 — Sincronizada versão exibida e verificação de atualizações.
  * v0.7.62 — Corrigida busca do comprovante do pedido sem recursão infinita.
@@ -44,7 +45,7 @@
     'use strict';
 
     // Prefere a versão informada pelo gerenciador, com fallback alinhado ao @version.
-    const VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '0.7.66';
+    const VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '0.7.67';
     const PREFIX = 'ocs0739';
 
     if (window.__OCS_0739__) return;
@@ -52,13 +53,14 @@
 
     const OCS_SETTINGS_KEY = 'ocs-settings-v0749';
     const OCS_DEFAULTS = Object.freeze({enabled:true, top:true, corner:true, sound:true,
-        duration:10, summary:true, filters:true, attachments:true, duplicates:true, interest:true, autoUpdates:true, ctrSingle:true, ctrBatch:true});
+        duration:10, summary:true, filters:true, attachments:true, duplicates:true, interest:true, autoUpdates:true, ctrSingle:true, ctrBatch:true, ctrBatchDelay:20});
     function readOCSSettings() {
         try {
             const stored = JSON.parse(localStorage.getItem(OCS_SETTINGS_KEY) || '{}');
             const result = {...OCS_DEFAULTS};
             for (const key of Object.keys(result)) {
                 if (key === 'duration') result.duration = Math.min(10, Math.max(1, Number(stored.duration) || 10));
+                else if (key === 'ctrBatchDelay') result.ctrBatchDelay = Math.min(30, Math.max(1, Math.round(Number(stored.ctrBatchDelay) || 20)));
                 else if (typeof stored[key] === 'boolean') result[key] = stored[key];
             }
             // Mantém o antigo ajuste de som de versões anteriores.
@@ -70,6 +72,7 @@
     function saveOCSSettings(next) {
         ocsSettings = {...ocsSettings, ...next};
         ocsSettings.duration = Math.min(10, Math.max(1, Number(ocsSettings.duration) || 10));
+        ocsSettings.ctrBatchDelay = Math.min(30, Math.max(1, Math.round(Number(ocsSettings.ctrBatchDelay) || 20)));
         localStorage.setItem(OCS_SETTINGS_KEY, JSON.stringify(ocsSettings));
         localStorage.setItem('ocs0736-sound-enabled', String(ocsSettings.sound));
         document.dispatchEvent(new CustomEvent('ocs:settings-changed'));
@@ -225,6 +228,13 @@
                 body.appendChild(element('div','Atalhos de exibição da documentação ambiental. Não utiliza a opção Imprimir Documentação.','ocs049-muted'));
                 row(body,'ctrSingle','Exibir CTR individual','Mantém o atalho de visualização da documentação ambiental.');
                 row(body,'ctrBatch','Exibir CTRs selecionados','Adiciona a opção em AÇÕES, abaixo de Gerar MTR, quando houver seleção.');
+                const ctrWait=element('div');ctrWait.style.cssText='margin:16px 0 12px';
+                const ctrWaitLabel=element('strong','Intervalo entre grupos de CTRs: '+draft.ctrBatchDelay+' segundos');
+                const ctrWaitRange=document.createElement('input');ctrWaitRange.type='range';ctrWaitRange.min='1';ctrWaitRange.max='30';ctrWaitRange.step='1';ctrWaitRange.value=String(draft.ctrBatchDelay);
+                ctrWaitRange.style.cssText='display:block;width:100%;margin:10px 0';
+                ctrWaitRange.addEventListener('input',()=>{draft.ctrBatchDelay=Number(ctrWaitRange.value);ctrWaitLabel.textContent='Intervalo entre grupos de CTRs: '+draft.ctrBatchDelay+' segundos';});
+                ctrWait.append(ctrWaitLabel,ctrWaitRange,element('div','De 1 a 30 segundos; padrão: 20 segundos. A espera ocorre entre grupos de até 5 guias e não confirma o término dos downloads.','ocs049-muted'));
+                body.appendChild(ctrWait);
                 body.appendChild(element('div','Os documentos são abertos em novas abas pelo endereço de Exibir Documentação Externa. O site externo pode exigir sessão ativa e o navegador pode bloquear múltiplas abas.','ocs049-muted'));
             } else {
                 body.appendChild(element('div','Versão instalada','ocs049-muted'));
@@ -3872,9 +3882,10 @@
       if(window.__ocsCtrBatchRunning){notice('Já existe uma abertura de CTRs em andamento.');return}
       const selected=selectedRows();
       if(!selected.length){notice('Selecione um ou mais atendimentos.');return}
-      if(selected.length>8&&!confirm('Abrir '+selected.length+' CTRs em grupos de até 5 abas, com 10 segundos entre os grupos?'))return;
+      const configuredDelay=Math.min(30,Math.max(1,Math.round(Number(readSettings().ctrBatchDelay)||20)));
+      if(selected.length>8&&!confirm('Abrir '+selected.length+' CTRs em grupos de até 5 abas, com '+configuredDelay+' segundos entre os grupos?'))return;
       const tasks=selected.map(row=>({href:docLinks(row)[0]?.href}));
-      const total=tasks.length, batchSize=5, delay=10000;
+      const total=tasks.length, batchSize=5;
       let opened=0, errors=0, blocked=0, withoutDoc=0, processed=0;
       window.__ocsCtrBatchRunning=true;
       const panel=document.createElement('section');
@@ -3913,7 +3924,7 @@
             render(`Grupo ${groupNumber} de ${groupTotal} — ${processed}/${total} processadas`);
           }
           if(offset+batchSize<total){
-            for(let remaining=10;remaining>0;remaining--){
+            for(let remaining=configuredDelay;remaining>0;remaining--){
               render(`Próximo grupo em ${remaining} segundo${remaining===1?'':'s'}…`);
               await new Promise(resolve=>setTimeout(resolve,1000));
             }

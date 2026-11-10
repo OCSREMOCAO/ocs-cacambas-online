@@ -12,7 +12,7 @@
 
 <br>
 
-![Versão](https://img.shields.io/badge/Versão-0.7.66-blue?style=flat-square)
+![Versão](https://img.shields.io/badge/Versão-0.7.67-blue?style=flat-square)
 ![Plataforma](https://img.shields.io/badge/Plataforma-Tampermonkey-green?style=flat-square)
 ![Status](https://img.shields.io/badge/Status-Em%20desenvolvimento-yellow?style=flat-square)
 ![Licença](https://img.shields.io/badge/Projeto-Independente-lightgrey?style=flat-square)
@@ -43,10 +43,12 @@
 
 - ✅ Botão individual **Exibir CTR** na listagem de atendimentos
 - ✅ Ação **Exibir CTRs selecionadas** para abrir múltiplas documentações
+- ✅ Abertura em grupos de até **5 guias**, com barra de progresso e contagem regressiva
+- ✅ Intervalo entre grupos configurável em **Configurações → CTR** (1 a 30 segundos; padrão 20 segundos)
 - ✅ Suporte à seleção de atendimentos na aba **Concluídos**, inclusive quando a opção **Gerar MTR** não estiver presente
 - ✅ Utiliza o endereço de visualização da documentação externa disponibilizado pelo sistema
 
-> **Importante:** o OCS exibe as CTRs; não gera nem baixa automaticamente os PDFs. O botão de download do comprovante do pedido foi removido.
+> **Importante:** o intervalo controla somente a abertura das guias; o script não consegue confirmar a conclusão dos downloads. O OCS exibe as CTRs; não gera nem baixa automaticamente os PDFs. O botão de download do comprovante do pedido foi removido.
 
 ### ⚙️ Configurações
 
@@ -104,7 +106,7 @@ Quando uma versão nova for publicada, o Tampermonkey poderá detectá-la e inst
 | Informação | Detalhes |
 |---|---|
 | Projeto | OCS \| Caçambas Online |
-| Versão | 0.7.66 |
+| Versão | 0.7.67 |
 | Tecnologia | JavaScript (userscript) |
 | Gerenciador | Tampermonkey |
 | Sistema-alvo | Caçambas Online — painel de parceiros |
@@ -119,7 +121,7 @@ Quando uma versão nova for publicada, o Tampermonkey poderá detectá-la e inst
 
 | Versão | Alteração principal |
 |---|---|
-| **0.7.66** | Ajuste da ação de CTRs selecionadas na aba Concluídos |
+| **0.7.67** | Ajuste da ação de CTRs selecionadas na aba Concluídos |
 | **0.7.62** | Remoção do botão de download do comprovante do pedido; manutenção dos atalhos CTR |
 | **0.7.60** | Atalhos individuais de CTR e tentativa de download do pedido (posteriormente removida) |
 | **0.7.58** | Exibição individual e múltipla de CTRs |
@@ -133,7 +135,7 @@ Este é um projeto **independente**, sem vínculo oficial com a plataforma Caça
 
 Algumas funções utilizam os recursos nativos do sistema, inclusive a criação e edição de lançamentos financeiros quando acionadas pelo usuário. Portanto, confira os dados antes de confirmar operações.
 
-O funcionamento depende da estrutura e das permissões do site, da sessão autenticada e das configurações do navegador. Mudanças na plataforma podem exigir adaptações no script. A versão 0.7.66 ainda requer validação prática das ações de CTR na interface real.
+O funcionamento depende da estrutura e das permissões do site, da sessão autenticada e das configurações do navegador. Mudanças na plataforma podem exigir adaptações no script. A versão 0.7.67 ainda requer validação prática das ações de CTR na interface real.
 
 ---
 
@@ -143,13 +145,13 @@ O funcionamento depende da estrutura e das permissões do site, da sessão auten
 
 **OCS Remoção de Caçambas**
 
-Versão **0.7.66**
+Versão **0.7.67**
 
 </div>
 
-> Versão 0.7.66: melhoria na identificação do menu AÇÕES na aba Concluídos.
+> Versão 0.7.67: melhoria na identificação do menu AÇÕES na aba Concluídos.
 
 
-### Abertura de CTRs em lotes (v0.7.66)
+### Abertura de CTRs em lotes (v0.7.67)
 
 A opção **Exibir CTRs selecionadas** abre até 5 guias por grupo, aguardando 10 segundos entre os grupos. Um painel apresenta quantidade selecionada, guias abertas, andamento e eventuais bloqueios do navegador. **Observação:** navegadores podem bloquear guias criadas após um intervalo; permita pop-ups para o site quando necessário.
