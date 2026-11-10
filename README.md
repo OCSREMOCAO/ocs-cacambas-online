@@ -23,7 +23,10 @@ Substitua `OCS.user.js` na branch `main` e aumente o valor de `@version`. Não a
 **Projeto independente, não oficial da plataforma.**
 
 
-### CTRs (v0.7.58)
+### CTRs (v0.7.59)
 
 Na lista de Atendimentos, o ícone azul de download ao lado da Documentação Ambiental usa a ação nativa **Imprimir Documentação**. Ao selecionar atendimentos, o menu **AÇÕES** oferece **Baixar CTRs selecionados**. O navegador pode abrir os documentos em novas abas e bloquear múltiplos downloads; habilite pop-ups quando necessário.
-\n## CTRs\n\nA versão 0.7.58 permite exibir CTR individual ou múltipla por meio da opção nativa **Exibir Documentação Externa**, com controles na aba **CTR** das configurações. A disponibilidade depende da documentação e do serviço externo.\n
+\n## CTRs\n\nA versão 0.7.59 permite exibir CTR individual ou múltipla por meio da opção nativa **Exibir Documentação Externa**, com controles na aba **CTR** das configurações. A disponibilidade depende da documentação e do serviço externo.\n
+## Novo em 0.7.59
+
+Na lista de atendimentos, o botão de exibir CTR permanece e um segundo botão permite baixar o comprovante do pedido usando o link de download nativo. As duas funções podem ser habilitadas na aba CTR das configurações.
