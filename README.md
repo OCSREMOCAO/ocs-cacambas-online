@@ -12,7 +12,7 @@
 
 <br>
 
-![Versão](https://img.shields.io/badge/Versão-0.7.93-blue?style=flat-square)
+![Versão](https://img.shields.io/badge/Versão-0.7.94-blue?style=flat-square)
 ![Plataforma](https://img.shields.io/badge/Plataforma-Tampermonkey-green?style=flat-square)
 ![Status](https://img.shields.io/badge/Status-Em%20desenvolvimento-yellow?style=flat-square)
 ![Licença](https://img.shields.io/badge/Projeto-Independente-lightgrey?style=flat-square)
@@ -35,14 +35,14 @@
 
 - ✅ Botão **Ordenar** para organizar os atendimentos por data
 - ✅ Prioridade para entregas, trocas e coletas, com **entrega antes da coleta** nas trocas
-- ✅ Agrupamento de trocas do **mesmo cliente na mesma data**, mesmo quando os endereços são diferentes (v0.7.93)
+- ✅ Agrupamento de trocas do **mesmo cliente na mesma data**, mesmo quando os endereços são diferentes (v0.7.94)
 - ✅ Separadores visuais por dia na tabela
 - ✅ Caixa de seleção do dia, para selecionar os atendimentos daquele dia exibidos na página
 - ✅ Caixa extra para selecionar atendimentos do mesmo cliente e dia, mantendo a seleção individual
 - ✅ Reagendamento rápido pelas setas ao lado da data, utilizando o fluxo nativo do sistema
 - ✅ Paginação nativa preservada; sem carregamento global automático de todas as páginas
 
-> **Seleções e ordenação:** operam sobre os atendimentos carregados na página atual. A caixa extra por cliente não seleciona automaticamente registros de outras páginas. A versão 0.7.93 retoma a base leve da 0.7.78, sem o mecanismo de ordenação global das versões intermediárias.
+> **Seleções e ordenação:** operam sobre os atendimentos carregados na página atual. A caixa extra por cliente não seleciona automaticamente registros de outras páginas. A versão 0.7.94 retoma a base leve da 0.7.78, sem o mecanismo de ordenação global das versões intermediárias.
 
 ### 🔔 Notificações inteligentes
 
@@ -122,7 +122,7 @@ Quando uma versão nova for publicada, o Tampermonkey poderá detectá-la e inst
 | Informação | Detalhes |
 |---|---|
 | Projeto | OCS \| Caçambas Online |
-| Versão | **0.7.93** |
+| Versão | **0.7.94** |
 | Tecnologia | JavaScript (userscript) |
 | Gerenciador | Tampermonkey |
 | Sistema-alvo | Caçambas Online — painel de parceiros |
@@ -137,12 +137,17 @@ Quando uma versão nova for publicada, o Tampermonkey poderá detectá-la e inst
 
 | Versão | Alteração principal |
 |---|---|
-| **0.7.93** | Corrige a contagem de CTRs selecionadas, ignorando caixas auxiliares de dia e cliente |
+| **0.7.94** | Ordenação permanece ativa ao trocar de página e reinicia ao mudar de aba |
 
 
 | Versão | Alteração principal |
 |---|---|
-| **0.7.93** | Agrupamento de trocas por cliente e data, mesmo com endereços diferentes |
+| **0.7.94** | Corrige a contagem de CTRs selecionadas, ignorando caixas auxiliares de dia e cliente |
+
+
+| Versão | Alteração principal |
+|---|---|
+| **0.7.94** | Agrupamento de trocas por cliente e data, mesmo com endereços diferentes |
 | **0.7.91** | Retorno à base leve 0.7.78; seleção por dia e por cliente com opções em Configurações |
 | **0.7.78** | Botão Ordenar compacto e ajustes de paginação |
 | **0.7.77** | Ordenação por data com separadores visuais de dia |
@@ -161,7 +166,7 @@ Este é um projeto **independente**, sem vínculo oficial com a plataforma Caça
 
 Algumas funções utilizam recursos nativos do sistema, inclusive a criação e edição de lançamentos financeiros quando acionadas pelo usuário. Confira os dados antes de confirmar operações.
 
-O funcionamento depende da estrutura do site, das permissões, da sessão autenticada e das configurações do navegador. Mudanças na plataforma podem exigir adaptações. A versão 0.7.93 requer validação prática no ambiente real, especialmente após mudanças de filtros e abas.
+O funcionamento depende da estrutura do site, das permissões, da sessão autenticada e das configurações do navegador. Mudanças na plataforma podem exigir adaptações. A versão 0.7.94 requer validação prática no ambiente real, especialmente após mudanças de filtros e abas.
 
 ---
 
@@ -171,6 +176,6 @@ O funcionamento depende da estrutura do site, das permissões, da sessão autent
 
 **OCS Remoção de Caçambas**
 
-Versão **0.7.93**
+Versão **0.7.94**
 
 </div>

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OCS | Caçambas Online
 // @namespace    OCS-CacambasOnline
-// @version      0.7.93
+// @version      0.7.94
 // @author       Tarcisio
 // @description  Gestão financeira, anexos, indicadores, filtros, juros, duplicatas e notificações inteligentes de pagamentos e atendimentos.
 // @match        https://app.cacambasonline.com/partner_area/*
@@ -18,6 +18,7 @@
  * Script independente para melhorias operacionais e financeiras no Caçambas Online.
  * Não é uma ferramenta oficial da plataforma.
  *
+ * v0.7.94 — Ordenação permanece ativa ao navegar nas páginas da mesma aba.
  * v0.7.91 — Base leve 0.7.78 com seleção por dia e cliente configurável.
  * v0.7.78 — Botão Ordenar compacto e tentativa de 50 atendimentos por página.
  * v0.7.77 — Ordenação por data com separadores de dia, depois cliente, endereço e entrega/coleta.
@@ -4173,7 +4174,35 @@
   tr.ocs-sort-day-divider>td{background:#eaf3fc!important;border-top:2px solid #86b8e8!important;border-bottom:1px solid #cbdff2!important;padding:7px 12px!important;color:#195c9e!important;font:700 12px Arial,sans-serif!important;text-align:left!important;letter-spacing:.2px}
   tr.ocs-sort-day-divider{pointer-events:none}`;
   (document.head||document.documentElement).appendChild(style);
-  let sorted=false,originalOrder=new WeakMap(),activeBody=null,inSort=false;
+  const SORT_KEY='ocs-order-jobs-sort-tab-v0794';
+  const tabNames=['pendente','com responsavel','em rota','chegou','concluido','cancelado','falhou'];
+  const normTab=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
+  function tabFrom(el){
+    const text=normTab(el?.textContent).replace(/\b\d+[+]?(?:\s|$)/g,' ').replace(/\*/g,'').trim();
+    return tabNames.find(name=>text===name||text.endsWith(' '+name))||'';
+  }
+  function currentTab(){
+    const candidates=[...document.querySelectorAll('[role="tab"][aria-selected="true"],.nav-link.active,.tab-link.active,.active[data-order-job-status],.active[data-status]')];
+    for(const el of candidates){const name=tabFrom(el);if(name)return name}
+    return '';
+  }
+  function remembered(){try{return JSON.parse(sessionStorage.getItem(SORT_KEY)||'null')}catch(_){return null}}
+  function remember(){try{sessionStorage.setItem(SORT_KEY,JSON.stringify({tab:activeTab,sorted}))}catch(_){}}
+  let activeTab=currentTab()||remembered()?.tab||'';
+  let sorted=!!(remembered()?.sorted&&remembered()?.tab===activeTab);
+  let originalOrder=new WeakMap(),activeBody=null,inSort=false;
+  function resetForTab(next){
+    if(!next||next===activeTab)return;
+    activeTab=next;sorted=false;originalOrder=new WeakMap();activeBody=null;
+    remember();
+  }
+  // A paginação não altera o estado; somente a troca de aba o desativa.
+  document.addEventListener('click',event=>{
+    const candidate=event.target.closest?.('a,button,[role="tab"]');
+    if(!candidate||candidate.id==='ocs-sort-jobs')return;
+    const tab=tabFrom(candidate);
+    if(tab&&tab!==activeTab){resetForTab(tab);setTimeout(refresh,0)}
+  },true);
   const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
   const datePattern=/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/;
   function tableInfo(){
@@ -4228,7 +4257,7 @@
   }
   function snapshot(info){
     const rows=[...info.tbody.rows].filter(row=>!row.classList.contains('ocs-sort-day-divider')&&row.cells.length>Math.max(info.typeIndex,info.clientIndex,info.dateIndex));
-    if(activeBody!==info.tbody){activeBody=info.tbody;originalOrder=new WeakMap();sorted=false}
+    if(activeBody!==info.tbody){activeBody=info.tbody;originalOrder=new WeakMap()}
     rows.forEach((row,i)=>{if(!originalOrder.has(row))originalOrder.set(row,i)});
     return rows;
   }
@@ -4316,10 +4345,11 @@
     button.addEventListener('click',()=>{
       sorted=!sorted;
       if(!apply()){sorted=!sorted;return}
+      remember();
       button.setAttribute('aria-pressed',String(sorted));
       button.textContent=sorted?'✓ Ordenado':'⇅ Ordenar';
     });
-    button.setAttribute('aria-pressed','false');button.textContent='⇅ Ordenar';
+    button.setAttribute('aria-pressed',String(sorted));button.textContent=sorted?'✓ Ordenado':'⇅ Ordenar';
     if(anchor===heading)heading.insertAdjacentElement('afterend',button);
     else if(search)search.insertAdjacentElement('beforebegin',button);
     else if(area)area.insertBefore(button,table);
@@ -4331,7 +4361,8 @@
     setTimeout(()=>{
       queued=false;
       const info=tableInfo();if(!info)return;
-      if(activeBody&&activeBody!==info.tbody){sorted=false;activeBody=null}
+      resetForTab(currentTab());
+      if(activeBody&&activeBody!==info.tbody){activeBody=null;originalOrder=new WeakMap()}
       toolbar();
       const btn=document.getElementById('ocs-sort-jobs');
       if(btn){btn.setAttribute('aria-pressed',String(sorted));btn.textContent=sorted?'✓ Ordenado':'⇅ Ordenar'}
