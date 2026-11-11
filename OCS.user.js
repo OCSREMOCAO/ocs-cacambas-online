@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OCS | Caçambas Online
 // @namespace    OCS-CacambasOnline
-// @version      0.7.67
+// @version      0.7.93
 // @author       Tarcisio
 // @description  Gestão financeira, anexos, indicadores, filtros, juros, duplicatas e notificações inteligentes de pagamentos e atendimentos.
 // @match        https://app.cacambasonline.com/partner_area/*
@@ -18,6 +18,16 @@
  * Script independente para melhorias operacionais e financeiras no Caçambas Online.
  * Não é uma ferramenta oficial da plataforma.
  *
+ * v0.7.91 — Base leve 0.7.78 com seleção por dia e cliente configurável.
+ * v0.7.78 — Botão Ordenar compacto e tentativa de 50 atendimentos por página.
+ * v0.7.77 — Ordenação por data com separadores de dia, depois cliente, endereço e entrega/coleta.
+ * v0.7.75 — Subordem: cliente, endereço e entrega antes de retirada nas trocas.
+ * v0.7.74 — Botão Ordenar: entregas, trocas (entrega + retirada do mesmo cliente) e retiradas, sem recarregar.
+ * v0.7.73 — Reagendamento rápido pela rota nativa em lote, com um único atendimento por vez.
+ * v0.7.71 — Reagendamento protegido: usa formulário nativo disponível e bloqueia POST incompleto.
+ * v0.7.70 — Setas azuis estilo link e envio dos campos nativos do reagendamento.
+ * v0.7.69 — Setas ao lado da data, na mesma linha, sem deslocar os ícones.
+ * v0.7.68 — Setas de reagendamento rápido na listagem de atendimentos.
  * v0.7.67 — Intervalo entre lotes de CTR configurável de 1 a 30 segundos (padrão 20).
  * v0.7.66 — CTRs em lotes de 5, intervalos de 10 segundos e progresso.
  * v0.7.65 — Sincronizada versão exibida e verificação de atualizações.
@@ -45,7 +55,7 @@
     'use strict';
 
     // Prefere a versão informada pelo gerenciador, com fallback alinhado ao @version.
-    const VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '0.7.67';
+    const VERSION = (typeof GM_info !== 'undefined' && GM_info?.script?.version) || '0.7.68';
     const PREFIX = 'ocs0739';
 
     if (window.__OCS_0739__) return;
@@ -53,7 +63,7 @@
 
     const OCS_SETTINGS_KEY = 'ocs-settings-v0749';
     const OCS_DEFAULTS = Object.freeze({enabled:true, top:true, corner:true, sound:true,
-        duration:10, summary:true, filters:true, attachments:true, duplicates:true, interest:true, autoUpdates:true, ctrSingle:true, ctrBatch:true, ctrBatchDelay:20});
+        duration:10, summary:true, filters:true, attachments:true, duplicates:true, interest:true, autoUpdates:true, ctrSingle:true, ctrBatch:true, ctrBatchDelay:20, selectDay:true, selectClient:true});
     function readOCSSettings() {
         try {
             const stored = JSON.parse(localStorage.getItem(OCS_SETTINGS_KEY) || '{}');
@@ -204,7 +214,7 @@
             head.appendChild(action('✕',()=>{overlay.hidden=true},true));panel.appendChild(head);
             panel.appendChild(element('div','Gestão financeira, notificações e atualizações','ocs049-muted'));
             const tabs=element('div',undefined,'ocs049-tabs');
-            for(const [id,label] of [['general','Geral'],['finance','Financeiro'],['ctr','CTR'],['updates','Atualizações']]){
+            for(const [id,label] of [['general','Geral'],['finance','Financeiro'],['operational','Atendimentos'],['ctr','CTR'],['updates','Atualizações']]){
                 const button=element('button',label,'ocs049-tab');button.type='button';button.setAttribute('aria-selected',String(tab===id));
                 button.addEventListener('click',()=>{tab=id;status='';render();});tabs.appendChild(button);
             }panel.appendChild(tabs);
@@ -224,6 +234,10 @@
                 row(body,'attachments','Anexos e ícones de clipe');row(body,'duplicates','Duplicar lançamentos');
                 row(body,'interest','Adicionar juros');
                 body.appendChild(element('div','Ao desligar um recurso, os elementos do OCS correspondentes serão ocultados ou removidos; recursos nativos do site permanecem intactos.','ocs049-muted'));
+            } else if(tab==='operational') {
+                body.appendChild(element('div','Seleção rápida sem alterar a ordenação ou a paginação nativa.','ocs049-muted'));
+                row(body,'selectDay','Selecionar atendimentos por dia','Adiciona uma caixa de seleção na faixa azul de cada dia.');
+                row(body,'selectClient','Selecionar atendimentos do mesmo cliente','Adiciona uma segunda caixa junto à individual, para selecionar os atendimentos do mesmo cliente no dia exibido.');
             } else if(tab==='ctr') {
                 body.appendChild(element('div','Atalhos de exibição da documentação ambiental. Não utiliza a opção Imprimir Documentação.','ocs049-muted'));
                 row(body,'ctrSingle','Exibir CTR individual','Mantém o atalho de visualização da documentação ambiental.');
@@ -3743,10 +3757,24 @@
   const enabled=key=>{const p=readSettings();return p.enabled!==false&&p[key]!==false};
   const absolute=(href,base=location.href)=>new URL(href,base).href;
   const docLinks=row=>[...row.querySelectorAll('a[href]')].filter(a=>DOC_PATH.test(a.getAttribute('href')||''));
-  const selectedRows=()=>[...document.querySelectorAll('tr')].filter(row=>{
-    const cb=row.querySelector('input[type="checkbox"]');
-    return cb&&cb.checked&&!cb.disabled&&row.querySelector('td');
-  });
+  // Contar somente os checkboxes nativos das linhas de atendimento.
+  // As seleções auxiliares de dia/cliente nunca representam atendimentos extras.
+  const selectedRows=()=>{
+    const seen=new Set();
+    const result=[];
+    for(const table of document.querySelectorAll('table')){
+      const headers=[...table.querySelectorAll('thead th')].map(th=>(th.textContent||'').trim().toLowerCase());
+      if(!headers.some(h=>h.includes('número do atendimento')||h.includes('numero do atendimento')))continue;
+      for(const row of table.tBodies[0]?.rows||[]){
+        if(row.classList.contains('ocs-sort-day-divider'))continue;
+        const cell=row.cells[0];
+        const cb=cell?.querySelector('input[type="checkbox"]:not(.ocs-select-day):not(.ocs-select-client):not(.ocs-day-select):not(.ocs-exchange-select)');
+        if(!cb||!cb.checked||cb.disabled||seen.has(row))continue;
+        seen.add(row);result.push(row);
+      }
+    }
+    return result;
+  };
   const style=document.createElement('style');style.id='ocs-ctr-0760-css';
   style.textContent=`
     .ocs-ctr-view-single{display:inline-flex!important;align-items:center!important;justify-content:center!important;vertical-align:middle!important;margin-left:4px!important;padding:2px!important;color:#ffbc00!important;background:transparent!important;border:0!important;border-radius:3px!important;cursor:pointer!important}
@@ -3955,4 +3983,476 @@
   document.addEventListener('ocs:settings-changed',refresh);
   new MutationObserver(refresh).observe(document.body||document.documentElement,{childList:true,subtree:true});
   refresh();
+})();
+
+
+// OCS 0.7.73 — Reagendamento rápido pela requisição nativa do atendimento.
+(function ocsQuickReschedule(){
+  'use strict';
+  if(window.__OCS_QUICK_RESCHEDULE_0773__)return;
+  window.__OCS_QUICK_RESCHEDULE_0773__=true;
+  if(!location.pathname.includes('/partner_area/operational/order_jobs'))return;
+
+  const css=document.createElement('style');
+  css.textContent=`.ocs-quick-date{display:inline-flex;gap:3px;align-items:center;vertical-align:middle;white-space:nowrap;max-width:100%}.ocs-quick-date-value{white-space:nowrap}
+  .ocs-quick-date button{appearance:none;-webkit-appearance:none;border:0!important;background:transparent!important;box-shadow:none!important;color:#1674d1!important;border-radius:0;cursor:pointer;font-weight:600;font-size:13px;line-height:18px;min-width:0;padding:0 2px;text-decoration:none}
+  .ocs-quick-date button:hover:not(:disabled){color:#0055ad!important;text-decoration:underline;background:transparent!important}.ocs-quick-date button:disabled{color:#a7b4c2!important;opacity:.5;cursor:not-allowed;text-decoration:none}
+  .ocs-quick-date .ocs-quick-date-busy{opacity:.65}`;
+  (document.head||document.documentElement).appendChild(css);
+  const pad=n=>String(n).padStart(2,'0');
+  const dateKey=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  const parseDate=text=>{
+    const m=String(text||'').match(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/);
+    if(!m)return null;
+    const d=new Date(Number(m[3]),Number(m[2])-1,Number(m[1]));
+    return d.getFullYear()===Number(m[3])&&d.getMonth()===Number(m[2])-1&&d.getDate()===Number(m[1])?d:null;
+  };
+  function notify(message,error=false){
+    let el=document.getElementById('ocs-quick-date-toast');
+    if(!el){el=document.createElement('div');el.id='ocs-quick-date-toast';el.style.cssText='position:fixed;bottom:24px;right:24px;z-index:2147483646;padding:11px 15px;color:white;border-radius:7px;box-shadow:0 4px 15px #0005;font:13px Arial,sans-serif;max-width:360px';document.body.appendChild(el)}
+    el.style.background=error?'#a52b2b':'#19834a';el.textContent=message;
+    clearTimeout(notify.timer);notify.timer=setTimeout(()=>el.remove(),8000);
+  }
+  function findDateCell(row){
+    const headers=[...row.closest('table')?.querySelectorAll('thead th')||[]];
+    const index=headers.findIndex(th=>/atender em/i.test(th.textContent||''));
+    if(index>=0){const cell=row.querySelectorAll('td')[index];if(cell&&parseDate(cell.textContent))return cell}
+    return [...row.querySelectorAll('td')].find(td=>parseDate(td.textContent)&&!td.querySelector('.ocs-quick-date'))||null;
+  }
+  function jobId(row){
+    const strings=[...row.querySelectorAll('a[href],form[action]')].map(el=>el.getAttribute('href')||el.getAttribute('action')||'');
+    for(const value of strings){const m=value.match(/\/operational\/order_jobs\/([0-9a-f]{8}-[0-9a-f-]{27,})/i);if(m)return m[1]}
+    for(const attr of ['data-order-job-id','data-order_job_id','data-id']){
+      const value=row.getAttribute(attr);if(value&&/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(value))return value;
+    }
+    return null;
+  }
+  // O formulário nativo usa a rota bulk mesmo quando apenas um atendimento é selecionado.
+  const BULK_ACTION='/partner_area/operational/order_jobs/bulk/reschedule';
+  function authenticityToken(){
+    return document.querySelector('meta[name="csrf-token"]')?.content ||
+      document.querySelector('input[name="authenticity_token"]')?.value || '';
+  }
+  function nativeRedirect(){
+    // Reproduz o campo redirect_url do formulário nativo, preservando filtros da listagem.
+    const url=new URL(location.href);
+    url.searchParams.set('action','index');
+    url.searchParams.set('controller','partner_area/order_jobs');
+    return url.pathname+url.search;
+  }
+  async function move(row,cell,button,delta){
+    if(row.dataset.ocsQuickDateBusy==='1')return;
+    const current=parseDate(cell.textContent);
+    if(!current){notify('Não foi possível identificar a data deste atendimento.',true);return}
+    const target=new Date(current.getFullYear(),current.getMonth(),current.getDate()+delta);
+    const today=new Date();today.setHours(0,0,0,0);
+    if(target<today){notify('Não é permitido reagendar para uma data anterior a hoje.',true);return}
+    const id=jobId(row);
+    if(!id){notify('Não foi possível identificar o atendimento. Nenhum dado foi enviado.',true);return}
+    const token=authenticityToken();
+    if(!token){notify('Token de autenticação indisponível. Atualize a página antes de tentar novamente.',true);return}
+    row.dataset.ocsQuickDateBusy='1';
+    const controls=[...row.querySelectorAll('.ocs-quick-date button')];controls.forEach(b=>b.disabled=true);
+    try{
+      const data=new URLSearchParams();
+      data.append('authenticity_token',token);
+      data.append('redirect_url',nativeRedirect());
+      data.append('bulk_ids[]',id); // Exatamente um atendimento: nunca reagendar outras linhas.
+      data.append('new_perform_at',dateKey(target));
+      data.append('modify_date_on_order_item','true');
+      data.append('button','');
+      const response=await fetch(BULK_ACTION,{
+        method:'POST',credentials:'same-origin',redirect:'follow',
+        headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8',
+          'X-Requested-With':'XMLHttpRequest','X-CSRF-Token':token,
+          'Accept':'text/javascript, application/javascript, application/json, */*; q=0.01'},
+        body:data.toString()
+      });
+      const contentType=response.headers.get('content-type')||'';
+      const body=await response.text();
+      if(!response.ok)throw new Error(`HTTP ${response.status}`);
+      if(/application\/json/i.test(contentType)){
+        let json;
+        try{json=JSON.parse(body)}catch{throw new Error('Resposta JSON inválida do servidor')}
+        if(json.success===false||json.error||json.errors)throw new Error(String(json.message||json.error||'Servidor recusou a alteração'));
+      }else if(/text\/html/i.test(contentType)){
+        if(/name=["'](?:user\[email\]|password)["']|sign.in|login/i.test(body))throw new Error('Sessão expirada; faça login novamente');
+        throw new Error('O servidor retornou HTML inesperado; verifique o atendimento no site');
+      }else if(/(?:javascript|ecmascript)/i.test(contentType)){
+        // O Rails/UJS normalmente devolve JavaScript. Não executar scripts recebidos via fetch.
+        if(/(?:alert-danger|flash\[.?error|unprocessable|validation.errors)/i.test(body))
+          throw new Error('O servidor sinalizou uma falha na alteração');
+      }
+      // Atualiza exclusivamente o texto da data após a resposta aceita, sem navegação.
+      // Preserva o link original, ícones, filtros, paginação e posição de rolagem.
+      const value=cell.querySelector('.ocs-quick-date-value');
+      if(value){
+        const walker=document.createTreeWalker(value,NodeFilter.SHOW_TEXT);
+        while(walker.nextNode()){
+          const node=walker.currentNode;
+          if(/\b\d{1,2}\/\d{1,2}\/\d{4}\b/.test(node.nodeValue||'')){
+            node.nodeValue=node.nodeValue.replace(/\b\d{1,2}\/\d{1,2}\/\d{4}\b/,
+              `${pad(target.getDate())}/${pad(target.getMonth()+1)}/${target.getFullYear()}`);
+            break;
+          }
+        }
+      }
+      notify(`Reagendado para ${pad(target.getDate())}/${pad(target.getMonth()+1)}/${target.getFullYear()}.`);
+    }catch(error){notify('Falha no reagendamento: '+error.message,true)}
+    finally{
+      delete row.dataset.ocsQuickDateBusy;
+      controls.forEach(b=>b.disabled=false);
+      const previous=row.querySelector('.ocs-quick-date button');
+      if(previous){const currentDate=parseDate(cell.textContent);const today=new Date();today.setHours(0,0,0,0);previous.disabled=!currentDate||currentDate<=today}
+    }
+  }
+  function install(){
+    for(const row of document.querySelectorAll('tr')){
+      if(!row.querySelector('td')||row.querySelector('.ocs-quick-date'))continue;
+      const cell=findDateCell(row);if(!cell)continue;
+      const date=parseDate(cell.textContent);if(!date)continue;
+      // Localiza apenas o texto da data, preservando os ícones e demais ações da célula.
+      const walker=document.createTreeWalker(cell,NodeFilter.SHOW_TEXT);
+      let dateNode=null;
+      while(walker.nextNode()){
+        if(parseDate(walker.currentNode.nodeValue)){dateNode=walker.currentNode;break}
+      }
+      if(!dateNode)continue;
+      const match=dateNode.nodeValue.match(/\b\d{1,2}\/\d{1,2}\/\d{4}\b/);
+      if(!match)continue;
+      let dateElement=dateNode.parentElement;
+      // Quando a data está em um link, mantemos o link original funcional.
+      const link=dateElement.closest('a');
+      if(link&&cell.contains(link))dateElement=link;
+      const wrap=document.createElement('span');wrap.className='ocs-quick-date';
+      const makeButton=(symbol,delta,title)=>{
+        const button=document.createElement('button');button.type='button';button.textContent=symbol;button.title=title;
+        button.setAttribute('aria-label',title);
+        button.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();move(row,cell,button,delta)});
+        return button;
+      };
+      const before=makeButton('<',-1,'Reagendar para o dia anterior');
+      const after=makeButton('>',1,'Reagendar para o dia seguinte');
+      const value=document.createElement('span');value.className='ocs-quick-date-value';
+      // Se o elemento só contém a data, movimenta-o inteiro, preservando handlers nativos.
+      if(dateElement!==cell&&dateElement.textContent.trim()===match[0]){
+        dateElement.before(wrap);
+        value.appendChild(dateElement);
+      }else{
+        // Texto misturado com outros elementos: divide somente o nó de texto.
+        const node=dateNode;
+        const tail=node.splitText(node.nodeValue.indexOf(match[0]));
+        tail.splitText(match[0].length);
+        tail.parentNode.insertBefore(wrap,tail);
+        value.appendChild(tail);
+      }
+      wrap.append(before,value,after);
+      const today=new Date();today.setHours(0,0,0,0);
+      before.disabled=date<=today;
+    }
+  }
+  let scheduled=false;
+  function schedule(){if(scheduled)return;scheduled=true;setTimeout(()=>{scheduled=false;install()},350)}
+  new MutationObserver(schedule).observe(document.body||document.documentElement,{childList:true,subtree:true});
+  document.addEventListener('turbo:load',schedule);
+  install();
+})();
+
+
+// OCS v0.7.77 — Ordenação visual por dia, cliente, endereço e tipo.
+(function ocsOrderJobsSorter(){
+  'use strict';
+  if(window.__OCS_ORDER_JOBS_SORTER_0774__)return;
+  window.__OCS_ORDER_JOBS_SORTER_0774__=true;
+  if(!location.pathname.includes('/partner_area/operational/order_jobs'))return;
+
+  const style=document.createElement('style');
+  style.textContent=`#ocs-sort-jobs{display:inline-flex;align-items:center;gap:5px;border:1px solid #1674d1;border-radius:4px;background:#fff;color:#1674d1;font:600 11px Arial,sans-serif;padding:5px 9px;cursor:pointer;white-space:nowrap;vertical-align:middle;margin:0 7px}
+  #ocs-sort-jobs:hover{background:#eaf4ff}#ocs-sort-jobs[aria-pressed="true"]{background:#1674d1;color:#fff}
+  #ocs-sort-jobs:disabled{opacity:.55;cursor:wait}
+  tr.ocs-sort-day-divider>td{background:#eaf3fc!important;border-top:2px solid #86b8e8!important;border-bottom:1px solid #cbdff2!important;padding:7px 12px!important;color:#195c9e!important;font:700 12px Arial,sans-serif!important;text-align:left!important;letter-spacing:.2px}
+  tr.ocs-sort-day-divider{pointer-events:none}`;
+  (document.head||document.documentElement).appendChild(style);
+  let sorted=false,originalOrder=new WeakMap(),activeBody=null,inSort=false;
+  const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
+  const datePattern=/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/;
+  function tableInfo(){
+    for(const table of document.querySelectorAll('table')){
+      const headings=[...table.querySelectorAll('thead th')].map(th=>norm(th.textContent));
+      const typeIndex=headings.findIndex(h=>h==='tipo'||h.startsWith('tipo '));
+      const clientIndex=headings.findIndex(h=>h==='cliente'||h.startsWith('cliente '));
+      const dateIndex=headings.findIndex(h=>h.includes('atender em'));
+      if(typeIndex<0||clientIndex<0||dateIndex<0)continue;
+      const tbody=table.tBodies[0];
+      if(!tbody||!tbody.querySelector('tr td'))continue;
+      return {table,tbody,typeIndex,clientIndex,dateIndex};
+    }
+    return null;
+  }
+  function typeOf(row,index){
+    const td=row.cells[index];if(!td)return '';
+    const badges=[...td.querySelectorAll('span,div,a,i,strong,b')];
+    for(const el of badges){
+      const label=(el.getAttribute('title')||el.getAttribute('aria-label')||el.getAttribute('data-original-title')||'').toLowerCase();
+      if(/entrega|delivery/.test(label))return 'E';
+      if(/coleta|retirada|collect/.test(label))return 'C';
+    }
+    const letters=(td.textContent||'').trim().toUpperCase();
+    if(/^E(?:\s|$)/.test(letters))return 'E';
+    if(/^C(?:\s|$)/.test(letters))return 'C';
+    const match=letters.match(/\b(ENTREGA|COLETA|RETIRADA)\b/);
+    return match?(match[1]==='ENTREGA'?'E':'C'):'';
+  }
+  function clientAddressOf(row,index){
+    const td=row.cells[index];if(!td)return {client:'',address:''};
+    const link=[...td.querySelectorAll('a')].find(a=>norm(a.textContent).length>2);
+    const client=norm(link?.textContent||td.textContent||'');
+    const copy=td.cloneNode(true);
+    if(link){
+      const matching=[...copy.querySelectorAll('a')].find(a=>norm(a.textContent)===client);
+      matching?.remove();
+    }
+    copy.querySelectorAll('svg,i,button,script,style').forEach(el=>el.remove());
+    return {client,address:norm(copy.textContent||'')};
+  }
+  function dateOf(row,index){
+    const text=row.cells[index]?.textContent||'';
+    const m=text.match(datePattern);
+    if(!m)return {key:'9999-12-31',label:'Sem data definida'};
+    const d=+m[1],mo=+m[2],y=+m[3];
+    const check=new Date(y,mo-1,d);
+    if(check.getFullYear()!==y||check.getMonth()!==mo-1||check.getDate()!==d)
+      return {key:'9999-12-31',label:'Sem data definida'};
+    const pad=n=>String(n).padStart(2,'0');
+    return {key:`${y}-${pad(mo)}-${pad(d)}`,label:`${pad(d)}/${pad(mo)}/${y}`};
+  }
+  function snapshot(info){
+    const rows=[...info.tbody.rows].filter(row=>!row.classList.contains('ocs-sort-day-divider')&&row.cells.length>Math.max(info.typeIndex,info.clientIndex,info.dateIndex));
+    if(activeBody!==info.tbody){activeBody=info.tbody;originalOrder=new WeakMap();sorted=false}
+    rows.forEach((row,i)=>{if(!originalOrder.has(row))originalOrder.set(row,i)});
+    return rows;
+  }
+  function apply(){
+    const info=tableInfo();if(!info)return false;
+    const rows=snapshot(info);if(!rows.length)return false;
+    const types=new Map(),identities=new Map(),dates=new Map(),groups=new Map();
+    for(const row of rows){
+      const type=typeOf(row,info.typeIndex),identity=clientAddressOf(row,info.clientIndex),date=dateOf(row,info.dateIndex);
+      types.set(row,type);identities.set(row,identity);dates.set(row,date);
+      // Troca = entrega e coleta do mesmo cliente NA MESMA DATA, mesmo quando os endereços diferem.
+      const key=JSON.stringify([date.key,identity.client]);
+      if(identity.client&&type){if(!groups.has(key))groups.set(key,new Set());groups.get(key).add(type)}
+    }
+    const rank=row=>{
+      const type=types.get(row),id=identities.get(row),date=dates.get(row);
+      const set=groups.get(JSON.stringify([date.key,id.client]));
+      if(set?.has('E')&&set?.has('C'))return 1;
+      if(type==='E')return 0;
+      if(type==='C')return 2;
+      return 3;
+    };
+    const ordered=rows.slice().sort((a,b)=>{
+      if(!sorted)return originalOrder.get(a)-originalOrder.get(b);
+      // Regra principal: dia crescente; depois entregas puras, trocas e retiradas.
+      const dateDiff=dates.get(a).key.localeCompare(dates.get(b).key);
+      if(dateDiff)return dateDiff;
+      const ra=rank(a),rb=rank(b);if(ra!==rb)return ra-rb;
+      // Para trocas: cliente > endereço > entrega (E) > retirada (C).
+      if(ra===1){
+        const ia=identities.get(a),ib=identities.get(b);
+        const clientDiff=ia.client.localeCompare(ib.client,'pt-BR');if(clientDiff)return clientDiff;
+        const typeDiff=(types.get(a)==='E'?0:1)-(types.get(b)==='E'?0:1);
+        if(typeDiff)return typeDiff;
+        const addressDiff=ia.address.localeCompare(ib.address,'pt-BR');if(addressDiff)return addressDiff;
+      }
+      return originalOrder.get(a)-originalOrder.get(b);
+    });
+    const oldSeparators=[...info.tbody.querySelectorAll(':scope > tr.ocs-sort-day-divider')];
+    const current=[...info.tbody.children];
+    // Separadores são permanentes, inclusive com a ordenação desativada.
+    // Na ordem original, uma nova faixa é exibida sempre que o dia mudar.
+    // Reutilizar separadores existentes para não provocar atualizações em loop.
+    const separatorByDate=new Map();
+    for(const separator of oldSeparators){
+      const key=separator.dataset.ocsSortDate;
+      if(!separatorByDate.has(key))separatorByDate.set(key,[]);
+      separatorByDate.get(key).push(separator);
+    }
+    const desired=[];let lastKey=null;
+    for(const row of ordered){
+      const date=dates.get(row);
+      if(date.key!==lastKey){
+        let divider=separatorByDate.get(date.key)?.shift();
+        if(!divider){
+          divider=document.createElement('tr');divider.className='ocs-sort-day-divider';
+          divider.dataset.ocsSortDate=date.key;
+          const cell=document.createElement('td');cell.colSpan=info.table.querySelectorAll('thead th').length||row.cells.length;
+          cell.textContent=date.label==='Sem data definida'?'Sem data definida':`Dia ${date.label}`;
+          divider.appendChild(cell);
+        }
+        desired.push(divider);lastKey=date.key;
+      }
+      desired.push(row);
+    }
+    if(current.length===desired.length&&desired.every((el,i)=>el===current[i]))return true;
+    inSort=true;
+    try{
+      oldSeparators.filter(el=>!desired.includes(el)).forEach(el=>el.remove());
+      const frag=document.createDocumentFragment();desired.forEach(el=>frag.appendChild(el));
+      info.tbody.appendChild(frag);
+    }finally{inSort=false}
+    return true;
+  }
+  function toolbar(){
+    const info=tableInfo();if(!info)return;
+    let button=document.getElementById('ocs-sort-jobs');if(button&&button.isConnected)return;
+    const table=info.table;
+    const area=table.closest('.card, .tab-pane, .container-fluid, .content-wrapper')||table.parentElement;
+    const heading=[...document.querySelectorAll('h1,h2,h3,h4')].find(el=>/atendimentos/i.test(el.textContent||''));
+    const search=document.querySelector('input[placeholder*="Pesquisar"],input[placeholder*="pesquisar"],input[type="search"]');
+    const anchor=heading&&heading.getBoundingClientRect().width?heading:search;
+    button=document.createElement('button');button.id='ocs-sort-jobs';button.type='button';
+    button.title='Ordenar por data; dentro de cada dia: entregas, trocas por cliente/endereço (entrega antes da retirada) e retiradas';
+    button.addEventListener('click',()=>{
+      sorted=!sorted;
+      if(!apply()){sorted=!sorted;return}
+      button.setAttribute('aria-pressed',String(sorted));
+      button.textContent=sorted?'✓ Ordenado':'⇅ Ordenar';
+    });
+    button.setAttribute('aria-pressed','false');button.textContent='⇅ Ordenar';
+    if(anchor===heading)heading.insertAdjacentElement('afterend',button);
+    else if(search)search.insertAdjacentElement('beforebegin',button);
+    else if(area)area.insertBefore(button,table);
+  }
+  let queued=false;
+  function refresh(){
+    if(inSort||queued)return;
+    queued=true;
+    setTimeout(()=>{
+      queued=false;
+      const info=tableInfo();if(!info)return;
+      if(activeBody&&activeBody!==info.tbody){sorted=false;activeBody=null}
+      toolbar();
+      const btn=document.getElementById('ocs-sort-jobs');
+      if(btn){btn.setAttribute('aria-pressed',String(sorted));btn.textContent=sorted?'✓ Ordenado':'⇅ Ordenar'}
+      apply();
+    },250);
+  }
+  new MutationObserver(mutations=>{
+    if(inSort)return;
+    if(mutations.some(m=>{
+      const target=m.target;
+      if(target.nodeType===1&&target.closest?.('.ocs-sort-day-divider'))return false;
+      if(m.type==='characterData')return !!target.parentElement?.closest('tbody');
+      if(m.type!=='childList')return false;
+      return target.matches?.('tbody,table,thead')||target.closest?.('tbody')||
+        [...m.addedNodes].some(n=>n.nodeType===1&&n.matches?.('table,tbody,tr'));
+    }))refresh();
+  }).observe(document.body||document.documentElement,{childList:true,characterData:true,subtree:true});
+  document.addEventListener('turbo:load',refresh);
+  refresh();
+})();
+
+
+// OCS v0.7.91 — Seleção leve por dia e cliente, sem buscar outras páginas.
+(function ocsLightSelection(){
+  'use strict';
+  if(!location.pathname.includes('/partner_area/operational/order_jobs'))return;
+  if(window.__OCS_LIGHT_SELECTION_0791__)return;
+  window.__OCS_LIGHT_SELECTION_0791__=true;
+  const KEY='ocs-settings-v0749';
+  const settings=()=>{try{return JSON.parse(localStorage.getItem(KEY)||'{}')}catch(_){return {}}};
+  const on=k=>{const v=settings();return v.enabled!==false&&v[k]!==false};
+  const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
+  const css=document.createElement('style');
+  css.textContent='.ocs-sort-day-divider,.ocs-sort-day-divider>td{pointer-events:auto!important}.ocs-select-day,.ocs-select-client{appearance:auto!important;width:13px!important;height:13px!important;accent-color:#1674d1!important;cursor:pointer!important;vertical-align:middle!important}.ocs-select-day{margin:0 8px 0 0!important}.ocs-select-client{margin:0 0 0 5px!important}.ocs-client-select-wrap{display:inline-flex;align-items:center;vertical-align:middle;margin-left:3px}';
+  (document.head||document.documentElement).appendChild(css);
+  function info(){
+    for(const table of document.querySelectorAll('table')){
+      const h=[...table.querySelectorAll('thead th')].map(x=>norm(x.textContent));
+      const client=h.findIndex(x=>x==='cliente'||x.startsWith('cliente '));
+      const date=h.findIndex(x=>x.includes('atender em'));
+      if(client>=0&&date>=0&&table.tBodies[0])return {body:table.tBodies[0],client,date};
+    }
+    return null;
+  }
+  const native=row=>row.cells[0]?.querySelector('input[type="checkbox"]:not(.ocs-select-client):not(.ocs-select-day)');
+  const date=row=>row.cells?.length?((row.cells?.[currentDateIndex]?.textContent||'').match(/\b\d{1,2}\/\d{1,2}\/\d{4}\b/)||[])[0]||'':'';
+  let currentDateIndex=-1;
+  function update(){
+    const x=info();if(!x)return;
+    currentDateIndex=x.date;
+    const rows=[...x.body.rows], groups=new Map();
+    for(const row of rows){
+      if(row.classList.contains('ocs-sort-day-divider'))continue;
+      const cb=native(row);if(!cb||cb.disabled)continue;
+      const td=row.cells[x.client];if(!td)continue;
+      const link=[...td.querySelectorAll('a')].find(a=>norm(a.textContent).length>2);
+      const client=norm(link?.textContent||td.textContent);
+      if(!client)continue;
+      const key=JSON.stringify([date(row),client]);
+      if(!groups.has(key))groups.set(key,[]);
+      groups.get(key).push({row,cb});
+    }
+    for(const row of rows){
+      if(!row.classList.contains('ocs-sort-day-divider'))continue;
+      let box=row.querySelector('.ocs-select-day');
+      if(!on('selectDay')){box?.remove();continue}
+      if(!box){
+        box=document.createElement('input');box.type='checkbox';box.className='ocs-select-day';
+        box.title='Selecionar todos os atendimentos deste dia';box.setAttribute('aria-label',box.title);
+        row.cells[0]?.prepend(box);
+      }
+      const members=[];let cursor=row.nextElementSibling;
+      while(cursor&&!cursor.classList.contains('ocs-sort-day-divider')){
+        const cb=native(cursor);if(cb&&!cb.disabled)members.push(cb);
+        cursor=cursor.nextElementSibling;
+      }
+      box.__members=members;
+      box.disabled=!members.length;
+      box.checked=!!members.length&&members.every(c=>c.checked);
+      box.indeterminate=members.some(c=>c.checked)&&!box.checked;
+    }
+    const eligible=new Map();
+    if(on('selectClient'))for(const [key,items] of groups)if(items.length>1)eligible.set(items[0].row,{key,items});
+    for(const extra of x.body.querySelectorAll('.ocs-select-client')){
+      if(!eligible.has(extra.closest('tr')))extra.closest('.ocs-client-select-wrap')?.remove();
+    }
+    for(const [row,group] of eligible){
+      let box=row.querySelector('.ocs-select-client');
+      if(!box){
+        const wrap=document.createElement('span');wrap.className='ocs-client-select-wrap';
+        box=document.createElement('input');box.type='checkbox';box.className='ocs-select-client';
+        box.title='Selecionar atendimentos deste cliente no mesmo dia';box.setAttribute('aria-label',box.title);
+        wrap.appendChild(box);row.cells[0]?.appendChild(wrap);
+      }
+      const members=group.items.map(item=>item.cb);
+      box.__members=members;
+      box.checked=members.every(c=>c.checked);
+      box.indeterminate=members.some(c=>c.checked)&&!box.checked;
+    }
+  }
+  document.addEventListener('click',e=>{
+    const box=e.target.closest?.('.ocs-select-day,.ocs-select-client');
+    if(box)e.stopPropagation();
+  },true);
+  document.addEventListener('change',e=>{
+    const box=e.target.closest?.('.ocs-select-day,.ocs-select-client');
+    if(box){
+      e.stopPropagation();
+      const desired=box.checked;
+      for(const cb of box.__members||[])if(cb.isConnected&&!cb.disabled&&cb.checked!==desired)cb.click();
+      queueMicrotask(update);
+    }else if(e.target.matches?.('input[type="checkbox"]'))queueMicrotask(update);
+  },true);
+  let pending=false;
+  const schedule=()=>{if(pending)return;pending=true;setTimeout(()=>{pending=false;update()},180)};
+  const observer=new MutationObserver(mutations=>{
+    if(mutations.every(m=>m.target.closest?.('.ocs-client-select-wrap')||m.target.closest?.('.ocs-sort-day-divider')))return;
+    schedule();
+  });
+  observer.observe(document.body||document.documentElement,{childList:true,subtree:true});
+  document.addEventListener('ocs:settings-changed',schedule);
+  document.addEventListener('turbo:load',schedule);
+  schedule();
 })();
